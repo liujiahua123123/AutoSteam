@@ -4,7 +4,8 @@ package net.mamoe
 
 import io.ktor.http.*
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.serialization.Serializable
+import net.mamoe.steam.AjaxVerifyEmailRequest
+import net.mamoe.steam.RefreshCaptchaRequest
 import org.jsoup.Connection
 import org.jsoup.Connection.Method.*
 import org.jsoup.Jsoup
@@ -16,6 +17,21 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.reflect.KProperty
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.memberProperties
+
+
+interface FormData
+
+@Suppress("UNSAFE_CAST")
+fun Connection.data(formData: FormData){
+    formData::class.memberProperties.forEach {
+        println(it.name + "=>")
+        data(it.name, (it as KProperty1<FormData, *>).get(formData).toString())
+    }
+}
+
 
 open class Ksoup(
 

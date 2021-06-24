@@ -1,11 +1,15 @@
 package net.mamoe.steam
 
 import kotlinx.serialization.Serializable
+import net.mamoe.FormData
 
 
 /**
  * https://store.steampowered.com/join/refreshcaptcha/
  */
+@Serializable
+object RefreshCaptchaRequest:FormData
+
 @Serializable
 data class RefreshCaptchaResponse(
     val gid: String,
@@ -14,15 +18,16 @@ data class RefreshCaptchaResponse(
     val type: Int
 )
 
-
 /**
  * https://store.steampowered.com/join/ajaxverifyemail
  */
-//Request, Form Data,
-//email =
-//captchagid =
-//captcha_text =
-//elang = 6
+@Serializable
+data class AjaxVerifyEmailRequest(
+    val email:String,
+    val captchagid:String,
+    val captcha_text:String,
+    val elang:Int = 6,
+):FormData
 
 @Serializable
 data class AjaxVerifyEmailResponse(
@@ -36,8 +41,10 @@ data class AjaxVerifyEmailResponse(
  * https://store.steampowered.com/join/ajaxcheckemailverified
  */
 
-//Request, Form Data
-//creationid = //5787350384381888941
+@Serializable
+data class AjaxEmailVerifiedRequest(
+    val creationid:String
+):FormData
 
 @Serializable
 data class AjaxEmailVerifiedResponse(
