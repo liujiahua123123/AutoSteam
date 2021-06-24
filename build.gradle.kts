@@ -44,6 +44,7 @@ dependencies {
 
     api(kotlinx("serialization-core", serializationVersion))
     api(kotlinx("serialization-json", serializationVersion))
+    api("org.jsoup:jsoup:1.13.1")
 
     implementation("com.belerweb:pinyin4j:2.5.1")
 }
