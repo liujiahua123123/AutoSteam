@@ -1,9 +1,12 @@
 @file:Suppress("MemberVisibilityCanBePrivate", "unused")
 @file:OptIn(ExperimentalContracts::class)
+
 package net.mamoe
 
 import io.ktor.http.*
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.*
+import kotlinx.serialization.json.Json
 import org.jsoup.Connection
 import org.jsoup.Connection.Method.*
 import org.jsoup.Jsoup
@@ -24,9 +27,28 @@ interface FormData
 @Suppress("UNSAFE_CAST")
 fun Connection.data(formData: FormData){
     formData::class.memberProperties.forEach {
-        println(it.name + "=>")
         data(it.name, (it as KProperty1<FormData, *>).get(formData).toString())
     }
+}
+
+
+val Json = Json {
+    this.ignoreUnknownKeys = true
+    this.isLenient = true
+    this.encodeDefaults = true
+}
+
+inline fun <reified T : Any> String.deserialize(): T = Json.decodeFromString(this)
+
+
+@OptIn(ExperimentalSerializationApi::class)
+inline fun <reified T : Any> T.serialize(format: StringFormat, serializer: KSerializer<T> = format.serializersModule.serializer()): String {
+    return format.encodeToString(serializer, this)
+}
+
+
+inline fun <reified T:Any> Connection.Response.decode():T{
+    return body().deserialize()
 }
 
 
@@ -162,6 +184,7 @@ open class Ksoup(
  */
 open class MockChromeClient : Ksoup() {
     open val cookies = mutableMapOf<String,String>()
+    open val userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
 
     init {
         addResponseHandler{
@@ -169,9 +192,9 @@ open class MockChromeClient : Ksoup() {
         }
         addIntrinsic{
             it.cookies(cookies)
-            it.userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36")
+            it.userAgent(userAgent)
             it.header("sec-ch-ua","\" Not;A Brand\";v=\"99\", \"Google Chrome\";v=\"91\", \"Chromium\";v=\"91\"")
-            it.header("sec-ch-ua-mobile:","?0")
+            it.header("sec-ch-ua-mobile","?0")
             it.header("Sec-Fetch-Dest","empty")
             it.header("Sec-Fetch-Mode","cors")
             it.header("Sec-Fetch-Site","same-origin")
@@ -189,6 +212,7 @@ open class SteamClient: MockChromeClient(){
     @PublishedApi
     internal fun nextAjaxCount():String = "" + ajaxCounter.addAndGet(1)
 
+    @OptIn(ExperimentalContracts::class)//BUG
     suspend inline fun ajax(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
         return Jsoup.connect(url).apply { method(POST) }.apply {
@@ -209,7 +233,7 @@ open class SteamClient: MockChromeClient(){
  */
 open class SteamStoreClient: SteamClient(){
 
-    val referer = "https://store.steampowered.com"
+    var referer = "https://store.steampowered.com"
 
     init {
         addIntrinsic{
