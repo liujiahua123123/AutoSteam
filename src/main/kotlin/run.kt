@@ -1,15 +1,14 @@
 
+import kotlinx.coroutines.time.delay
 import net.mamoe.SteamStoreClient
-import net.mamoe.captcha.CaptchaSolveRequest
-import net.mamoe.captcha.CaptchaSolveResponse
-import net.mamoe.captcha.CaptchaSolver
 import net.mamoe.data
 import net.mamoe.decode
 import net.mamoe.steam.*
-import java.net.Proxy
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
+import java.time.Duration
+import java.util.*
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
@@ -32,6 +31,85 @@ suspend fun main(){
     }
 
 
+    val c = Scanner(System.`in`)
+    println("Waiting for sessionId")
+    val sessionID = c.nextLine().trim()
+
+
+    client.ajaxCounter.addAndGet(2)//for default
+
+    while (true) {
+        val emailResponse = client.ajax("https://store.steampowered.com/join/ajaxcheckemailverified") {
+            data(
+                AjaxEmailVerifiedRequest(
+                    creationid = sessionID
+                )
+            )
+        }.decode<AjaxEmailVerifiedResponse>()
+
+        when(emailResponse.status()) {
+            AjaxEmailVerifiedResponse.Companion.Status.SUCCESS -> {
+                println("Email Verified")
+                break
+            }
+            AjaxEmailVerifiedResponse.Companion.Status.WAITING -> {
+                println("Waiting")
+                delay(Duration.ofMillis(3000))
+                continue
+            }
+            else -> {
+                error("Error in email verification, probably a domain ban")
+            }
+        }
+    }
+
+
+    client.ajax("https://store.steampowered.com/join/createaccount"){
+        data(CreateAccountRequest(
+            "testAtcsbh1bjsbx",
+            "UI129s8xnj1w",
+            creation_sessionid = sessionID
+        ))
+    }
+
+}
+
+
+fun fixJava(){
+    //headers: referer
+    System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
+
+
+    //proxy
+    System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")
+    System.setProperty("jdk.http.auth.proxying.disabledSchemes", "")
+    //Authenticator.setDefault(ProxyAuthenticator)
+
+    //ssl
+    System.setProperty("https.protocols", "TLSv1.2")
+    System.setProperty("jdk.tls.client.protocols", "TLSv1.2")
+
+    val context: SSLContext = SSLContext.getInstance("TLS")
+    val trustManagerArray: Array<TrustManager> = arrayOf(object : X509TrustManager {
+        @Throws(CertificateException::class)
+        override fun checkClientTrusted(chain: Array<X509Certificate?>?, authType: String?) {
+        }
+
+        @Throws(CertificateException::class)
+        override fun checkServerTrusted(chain: Array<X509Certificate?>?, authType: String?) {
+        }
+
+        override fun getAcceptedIssuers(): Array<X509Certificate> {
+            return arrayOf()
+        }
+    })
+    context.init(null, trustManagerArray, SecureRandom())
+    HttpsURLConnection.setDefaultSSLSocketFactory(context.socketFactory)
+    HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
+}
+
+suspend fun test(){
+    /*
     val captchaResponse = client.ajax("https://store.steampowered.com/join/refreshcaptcha/"){
         data(RefreshCaptchaRequest)
     }.decode<RefreshCaptchaResponse>()
@@ -77,39 +155,6 @@ suspend fun main(){
         error("Failed to send email, blocked by shield" )
     }
 
-    //waiting for email
+     */
 }
 
-
-fun fixJava(){
-    //headers: referer
-    System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
-
-
-    //proxy
-    System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")
-    System.setProperty("jdk.http.auth.proxying.disabledSchemes", "")
-    //Authenticator.setDefault(ProxyAuthenticator)
-
-    //ssl
-    System.setProperty("https.protocols", "TLSv1.2")
-    System.setProperty("jdk.tls.client.protocols", "TLSv1.2")
-
-    val context: SSLContext = SSLContext.getInstance("TLS")
-    val trustManagerArray: Array<TrustManager> = arrayOf(object : X509TrustManager {
-        @Throws(CertificateException::class)
-        override fun checkClientTrusted(chain: Array<X509Certificate?>?, authType: String?) {
-        }
-
-        @Throws(CertificateException::class)
-        override fun checkServerTrusted(chain: Array<X509Certificate?>?, authType: String?) {
-        }
-
-        override fun getAcceptedIssuers(): Array<X509Certificate> {
-            return arrayOf()
-        }
-    })
-    context.init(null, trustManagerArray, SecureRandom())
-    HttpsURLConnection.setDefaultSSLSocketFactory(context.socketFactory)
-    HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
-}
