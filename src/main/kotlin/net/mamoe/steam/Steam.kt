@@ -130,5 +130,11 @@ data class CreateAccountRequest(
 ):FormData
 
 
+@Serializable
+data class CreateAccountResponse(
+    val bSuccess:Boolean,
+    val bInSteamClient: Boolean,
+    val eresult:Int
+)
 
 

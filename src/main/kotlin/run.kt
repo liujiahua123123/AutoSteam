@@ -1,77 +1,132 @@
 
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.withContext
 import net.mamoe.SteamStoreClient
 import net.mamoe.data
 import net.mamoe.decode
+import net.mamoe.email.MailService
+import net.mamoe.server.SessionReceiveServer
 import net.mamoe.steam.*
+import java.io.File
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.*
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import kotlin.random.Random
 
-suspend fun main(){
-    fixJava()
-
-
-    val client = SteamStoreClient().apply {
-        referer = "https://store.steampowered.com/join/"
-        addIntrinsic{
-            println("[NETWORK] -> Connect " + it.request().url())
-            println("[NETWORK] ->    Send " + it.request().requestBody())
-        }
-        addResponseHandler{
-            println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
+val client = SteamStoreClient().apply {
+    referer = "https://store.steampowered.com/join/"
+    addIntrinsic{
+        println("[NETWORK] -> Connect " + it.request().url())
+    }
+    addResponseHandler{
+        println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
+        if(it.body().contains("<!DOCTYPE html>")){
+            println("[NETWORK] <- Receive HTML")
+        }else {
             println("[NETWORK] <- Receive " + it.body())
         }
     }
+}
 
+val regDispatcher = Executors.newFixedThreadPool(3).asCoroutineDispatcher()
 
-    val c = Scanner(System.`in`)
-    println("Waiting for sessionId")
-    val sessionID = c.nextLine().trim()
+val file = File(System.getProperty("user.dir") + "/accounts.txt").apply {
+    createNewFile()
+}
+suspend fun main(){
+    fixJava()
 
+    SessionReceiveServer.start(true)
+}
 
-    client.ajaxCounter.addAndGet(2)//for default
+suspend fun registerSimple(sessionID:String, email:String){
+    withContext(regDispatcher) {
+        client.ajaxCounter.addAndGet(2)//for default
 
-    while (true) {
-        val emailResponse = client.ajax("https://store.steampowered.com/join/ajaxcheckemailverified") {
-            data(
-                AjaxEmailVerifiedRequest(
-                    creationid = sessionID
+        client.get(MailService.DEFAULT.verifyRegister(email).apply {
+            println("Mail Verify Link: $this")
+        })
+        println("Mail Verified")
+
+        while (true) {
+            val emailResponse = client.ajax("https://store.steampowered.com/join/ajaxcheckemailverified") {
+                data(
+                    AjaxEmailVerifiedRequest(
+                        creationid = sessionID
+                    )
                 )
-            )
-        }.decode<AjaxEmailVerifiedResponse>()
+            }.decode<AjaxEmailVerifiedResponse>()
 
-        when(emailResponse.status()) {
-            AjaxEmailVerifiedResponse.Companion.Status.SUCCESS -> {
-                println("Email Verified")
-                break
-            }
-            AjaxEmailVerifiedResponse.Companion.Status.WAITING -> {
-                println("Waiting")
-                delay(Duration.ofMillis(3000))
-                continue
-            }
-            else -> {
-                error("Error in email verification, probably a domain ban")
+            when (emailResponse.status()) {
+                AjaxEmailVerifiedResponse.Companion.Status.SUCCESS -> {
+                    println("Email Verified")
+                    break
+                }
+                AjaxEmailVerifiedResponse.Companion.Status.WAITING -> {
+                    println("Waiting")
+                    delay(Duration.ofMillis(3000))
+                    continue
+                }
+                else -> {
+                    error("Error in email verification, probably a domain ban")
+                }
             }
         }
+
+
+        println("Password = KIM321321232")
+        var accountName = email.substringBefore("@")
+
+        while (true) {
+            val res = client.ajax("https://store.steampowered.com/join/checkavail/") {
+                data(
+                    CheckUsernameRequest(
+                        accountName
+                    )
+                )
+            }.decode<CheckUsernameResponse>()
+            if (!res.bAvailable) {
+                if(res.rgSuggestions.isEmpty()) {
+                    accountName += Random.nextInt(0, 9)
+                }else{
+                    accountName = res.rgSuggestions[0]
+                }
+                delay(Duration.ofMillis(500))
+                continue
+            }
+            break;
+        }
+
+        var password = "KIManti" + Random.Default.nextInt(10000,99999) + "a"
+
+        val response = client.ajax("https://store.steampowered.com/join/createaccount") {
+            data(
+                CreateAccountRequest(
+                    accountName,
+                    password,
+                    creation_sessionid = sessionID
+                )
+            )
+        }.decode<CreateAccountResponse>()
+
+
+        if(response.bSuccess) {
+            println("Register Complete, account saved")
+            println("$accountName:$password")
+            file.appendText("$accountName:$password\n")
+        }else{
+            error("Error in registration")
+        }
     }
-
-
-    client.ajax("https://store.steampowered.com/join/createaccount"){
-        data(CreateAccountRequest(
-            "testAtcsbh1bjsbx",
-            "UI129s8xnj1w",
-            creation_sessionid = sessionID
-        ))
-    }
-
 }
 
 

