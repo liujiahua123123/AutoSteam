@@ -1,10 +1,10 @@
 
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.withContext
-import net.mamoe.SteamStoreClient
-import net.mamoe.data
-import net.mamoe.decode
+import kotlinx.serialization.encodeToString
+import net.mamoe.*
 import net.mamoe.email.MailService
 import net.mamoe.server.SessionReceiveServer
 import net.mamoe.steam.*
@@ -39,14 +39,40 @@ val client = SteamStoreClient().apply {
 
 val regDispatcher = Executors.newFixedThreadPool(3).asCoroutineDispatcher()
 
-val file = File(System.getProperty("user.dir") + "/accounts.txt").apply {
+val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
     createNewFile()
+    if(this.readText().isEmpty()){
+        this.writeText("[]")
+    }
 }
 suspend fun main(){
     fixJava()
 
     SessionReceiveServer.start(true)
+
+
+    /*
+    val d = client.post("https://store.steampowered.com/login/getrsakey/"){
+        data(GetRsaKeyRequest(
+            username = "zhangjinguo6915"
+        ))
+    }.decode<GetRsaKeyResponse>()
+
+    val ps = getRsaPublicKey(d.publickey_mod,d.publickey_exp,"KIManti10729a")
+    println(ps)
+
+    val r = client.post("https://store.steampowered.com/login/dologin/"){
+        data(LoginRequest(
+            username = "zhangjinguo6915",
+            password = ps,
+            rsatimestamp = d.timestamp,
+        ))
+    }.decode<LoginResponse>()
+
+    println(r)
+    */
 }
+
 
 suspend fun registerSimple(sessionID:String, email:String){
     withContext(regDispatcher) {
@@ -83,7 +109,7 @@ suspend fun registerSimple(sessionID:String, email:String){
         }
 
 
-        println("Password = KIM321321232")
+        println("Password = KIM32132123")
         var accountName = email.substringBefore("@")
 
         while (true) {
@@ -122,13 +148,17 @@ suspend fun registerSimple(sessionID:String, email:String){
         if(response.bSuccess) {
             println("Register Complete, account saved")
             println("$accountName:$password")
-            file.appendText("$accountName:$password\n")
+            val list = file.readText().deserialize<MutableList<Account>>()
+            list.add(
+                Account(
+                accountName,password,email,false,false
+            ))
+            file.writeText(Json.encodeToString(list))
         }else{
             error("Error in registration")
         }
     }
 }
-
 
 fun fixJava(){
     //headers: referer
@@ -162,6 +192,7 @@ fun fixJava(){
     HttpsURLConnection.setDefaultSSLSocketFactory(context.socketFactory)
     HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
 }
+
 
 suspend fun test(){
     /*

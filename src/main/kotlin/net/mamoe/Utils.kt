@@ -4,12 +4,14 @@
 package net.mamoe
 
 import io.ktor.http.*
+import io.ktor.util.*
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import org.jsoup.Connection
 import org.jsoup.Connection.Method.*
 import org.jsoup.Jsoup
+import java.math.BigInteger
 import java.net.*
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -20,6 +22,9 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
+import java.nio.charset.Charset
+import java.util.*
+import kotlin.random.Random
 
 
 interface FormData
@@ -31,6 +36,28 @@ fun Connection.data(formData: FormData){
     }
 }
 
+@OptIn(InternalAPI::class)
+fun getRsaPublicKey(mod:String,exp:String,password: String):String{
+    /*
+    val keyFactory = KeyFactory.getInstance("RSA")
+    var key = keyFactory.generatePublic(RSAPublicKeySpec(
+        BigInteger(mod,16),
+        BigInteger(exp,16),//exp
+    ))
+
+    val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+    cipher.init(Cipher.ENCRYPT_MODE, key)
+    val cipherData = cipher.doFinal(password.toByteArray())
+
+    val b64 = cipherData.encodeBase64()
+    return b64
+
+
+
+     */
+
+    return RSA(mod,exp).encrypt(password)
+}
 
 val Json = Json {
     this.ignoreUnknownKeys = true
@@ -243,3 +270,57 @@ open class SteamStoreClient: SteamClient(){
         }
     }
 }
+
+
+internal class RSA(modHex: String?, expHex: String?) {
+    private val modulus: BigInteger
+    private val exponent: BigInteger
+    private val charset = Charset.forName("ISO-8859-1")
+
+    @OptIn(InternalAPI::class)
+    fun encrypt(password: String): String {
+        val data = pkcs1pad2(password.toByteArray(charset), modulus.bitLength() + 7 shr 3)
+        val d2 = data.modPow(exponent, modulus)
+        var dataHex = d2.toString(16)
+        if (dataHex.length and 1 == 1) {
+            dataHex = "0$dataHex"
+        }
+        val encrypted = hexStringToByteArray(dataHex)
+        return encrypted.encodeBase64()
+    }
+
+    private fun hexStringToByteArray(s: String): ByteArray {
+        val len = s.length
+        val data = ByteArray(len / 2)
+        var i = 0
+        while (i < len) {
+            data[i / 2] =
+                ((Character.digit(s[i], 16) shl 4) + Character.digit(s[i + 1], 16)).toByte()
+            i += 2
+        }
+        return data
+    }
+
+    private fun pkcs1pad2(data: ByteArray, n: Int): BigInteger {
+        var n = n
+        val bytes = ByteArray(n)
+        var i = data.size - 1
+        while (i >= 0 && n > 11) {
+            bytes[--n] = data[i--]
+        }
+        bytes[--n] = 0
+        while (n > 2) {
+            bytes[--n] = Random.Default.nextBytes(1)[0]
+        }
+        bytes[--n] = 0x2
+        bytes[--n] = 0
+        return BigInteger(bytes)
+    }
+
+    init {
+        modulus = BigInteger(modHex, 16)
+        exponent = BigInteger(expHex, 16)
+    }
+}
+
+

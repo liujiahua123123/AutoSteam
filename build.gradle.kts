@@ -39,6 +39,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:0.7.2")
     implementation("com.github.davidmoten:subethasmtp:6.0.0")
     implementation("tech.blueglacier:email-mime-parser:1.0.5")
+    //implementation("org.bouncycastle:bcprov-jdk15on:1.64")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.1.0-RC")
 

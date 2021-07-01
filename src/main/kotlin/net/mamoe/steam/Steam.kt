@@ -1,7 +1,18 @@
 package net.mamoe.steam
 
+import kotlinx.html.currentTimeMillis
 import kotlinx.serialization.Serializable
 import net.mamoe.FormData
+
+
+@Serializable
+data class Account(
+    val username: String,
+    val password: String,
+    val email:String,
+    val profiled: Boolean = false,
+    val chinaAuthed: Boolean = false,
+)
 
 
 /**
@@ -136,5 +147,52 @@ data class CreateAccountResponse(
     val bInSteamClient: Boolean,
     val eresult:Int
 )
+
+
+//https://store.steampowered.com/login/getrsakey/
+
+@Serializable
+data class GetRsaKeyRequest(
+    val donotcache:Long = currentTimeMillis(),
+    val username:String
+):FormData
+
+@Serializable
+data class GetRsaKeyResponse(
+    val publickey_exp: String,
+    val publickey_mod: String,
+    val success: Boolean,
+    val timestamp: String,
+    val token_gid: String
+)
+
+//https://store.steampowered.com/login/dologin/
+
+@Serializable
+data class LoginRequest(
+    val donotcache:Long = currentTimeMillis(),
+    val username:String,
+    val password:String,
+    val twofactorcode:String = "",
+    val emailauth:String = "",
+    val loginfriendlyname:String = "",
+    val captchagid:Int = -1,
+    val captcha_text:String = "",
+    val emailsteamid:String = "",
+    val rsatimestamp:String,
+    val remember_login:Boolean = true
+):FormData
+
+@Serializable
+data class LoginResponse(
+    val captcha_gid: Int,
+    val captcha_needed: Boolean,
+    val message: String,
+    val requires_twofactor: Boolean,
+    val success: Boolean,
+    val emailauth_needed: Boolean
+)
+
+
 
 
