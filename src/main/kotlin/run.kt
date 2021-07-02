@@ -1,26 +1,23 @@
 
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import net.mamoe.*
 import net.mamoe.email.MailService
-import net.mamoe.server.SessionReceiveServer
 import net.mamoe.steam.*
 import java.io.File
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.time.Duration
-import java.util.*
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import kotlin.random.Random
+import kotlin.system.exitProcess
 
 val client = SteamStoreClient().apply {
     referer = "https://store.steampowered.com/join/"
@@ -48,31 +45,116 @@ val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
 suspend fun main(){
     fixJava()
 
-    SessionReceiveServer.start(true)
+    while (true) {
+        val accounts = file.readText().deserialize<MutableList<Account>>()
+        val next = accounts.firstOrNull { !it.profiled } ?: error("No account to done")
+
+        println("start handle: $next")
+        doProfile(next.username, next.password)
+
+        accounts.remove(next)
+        accounts.add(next.copy(profiled = true))
+
+        file.writeText(SteamJson.encodeToString(accounts))
+        println("finish handle: $next")
+        client.cookies.clear()
+        delay(Duration.ofMillis(10000))
+    }
+}
 
 
-    /*
+suspend fun doProfile(username:String, password:String){
+    //SessionReceiveServer.start(true)
+
+
     val d = client.post("https://store.steampowered.com/login/getrsakey/"){
         data(GetRsaKeyRequest(
-            username = "zhangjinguo6915"
+            username = username
         ))
     }.decode<GetRsaKeyResponse>()
 
-    val ps = getRsaPublicKey(d.publickey_mod,d.publickey_exp,"KIManti10729a")
+
+    val ps = steamPasswordRSA(d.publickey_mod,d.publickey_exp,password)
     println(ps)
 
     val r = client.post("https://store.steampowered.com/login/dologin/"){
         data(LoginRequest(
-            username = "zhangjinguo6915",
+            username = username,
             password = ps,
             rsatimestamp = d.timestamp,
         ))
     }.decode<LoginResponse>()
 
-    println(r)
-    */
-}
+    if(!r.login_complete){
+        println(r)
+        error("Failed to complete login")
+    }
 
+    val steamId = r.transfer_parameters.map { it }.firstOrNull { it.key == "steamid" }?.value
+        ?: error("Failed to retrieve steamid from transfer parms")
+
+    println("Login Complete, steamID=$steamId start doing transfers")
+
+    r.transfer_urls.forEach {
+        val host =  it.substringAfter("https://").substringBefore("/")
+        val referer = "https://store.steampowered.com/"
+        client.post(it){
+            data(r.transfer_parameters)
+            header("host",host)
+            header("referer",referer)
+        }
+        println("Redirecting Login to $it")
+    }
+
+    println("Showing Login Success cookies: ")
+    client.cookies.forEach { (t, u) ->
+        println("Cookies for $t")
+        u.forEach { (t, u) ->
+            println("$t => $u")
+        }
+    }
+    println("=======")
+
+    client.get("https://steamcommunity.com/profiles/$steamId/edit/info")
+
+    //at this point, expect the sessionId is ready
+    val communitySessionId = client.cookies["steamcommunity.com"]?.get("sessionid")?: error("Failed to find sessionId for steam community")
+
+    println("Community Session Id:$communitySessionId")
+
+
+    val editResponse = client.post("https://steamcommunity.com/profiles/$steamId/edit/"){
+        data(EditProfileRequest(
+            sessionID = communitySessionId,
+            personaName = "上海黑手维克托",
+            summary = "上海黑手维克托老师专用账号"
+        ))
+    }.decode<EditProfileResponse>()
+
+    if(editResponse.success == 1){
+        println("edit profile success")
+    }
+
+    val upload = client.post("https://steamcommunity.com/actions/FileUploader"){
+        data(UploadAvatarRequest(
+            sessionid = communitySessionId,
+            sId = steamId
+        ))
+        data("avatar","MyAva.jpg",File(System.getProperty("user.dir") + "/BlackHandVector.jpg").inputStream())
+        maxBodySize(1024*10)
+        timeout(120000)
+    }.decode<UploadAvatarResponse>()
+    if(upload.success){
+        println("successfully changed avatar")
+    }
+
+    client.post("https://steamcommunity.com/groups/Anti-Player-RE"){
+        data(JoinGroupRequest(
+            sessionID = communitySessionId
+        ))
+    }
+    println("Request join")
+}
 
 suspend fun registerSimple(sessionID:String, email:String){
     withContext(regDispatcher) {
@@ -142,6 +224,7 @@ suspend fun registerSimple(sessionID:String, email:String){
                     creation_sessionid = sessionID
                 )
             )
+            data()
         }.decode<CreateAccountResponse>()
 
 
@@ -153,7 +236,7 @@ suspend fun registerSimple(sessionID:String, email:String){
                 Account(
                 accountName,password,email,false,false
             ))
-            file.writeText(Json.encodeToString(list))
+            file.writeText(SteamJson.encodeToString(list))
         }else{
             error("Error in registration")
         }

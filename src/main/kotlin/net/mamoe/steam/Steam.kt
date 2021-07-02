@@ -3,6 +3,7 @@ package net.mamoe.steam
 import kotlinx.html.currentTimeMillis
 import kotlinx.serialization.Serializable
 import net.mamoe.FormData
+import java.io.InputStream
 
 
 @Serializable
@@ -185,13 +186,86 @@ data class LoginRequest(
 
 @Serializable
 data class LoginResponse(
-    val captcha_gid: Int,
-    val captcha_needed: Boolean,
-    val message: String,
-    val requires_twofactor: Boolean,
-    val success: Boolean,
-    val emailauth_needed: Boolean
+    val captcha_gid: Int = -1,
+    val captcha_needed: Boolean = false,
+    val message: String = "",
+    val requires_twofactor: Boolean = false,
+    val success: Boolean = false,
+    val emailauth_needed: Boolean = false,
+    val login_complete: Boolean = false,
+    val transfer_urls: List<String> = emptyList(),
+    val transfer_parameters: Map<String,String> = emptyMap()
 )
+
+
+/**
+ * https://steamcommunity.com/profiles/{steamid}/edit/
+ */
+
+data class EditProfileRequest(
+    val sessionID: String,
+    val type:String = "profileSave",
+    val weblink_1_title:String = "",
+    val weblink_1_url:String = "",
+    val weblink_2_title:String = "",
+    val weblink_2_url:String = "",
+    val weblink_3_title:String = "",
+    val weblink_3_url:String = "",
+    val personaName:String = "",//nick name
+    val real_name:String = "",
+    val customURL:String = "",
+    val country:String = "",
+    val state:String = "",
+    val city:String = "",
+    val summary:String = "",//information
+    val hide_profile_awards:Int = 0,
+    val json:Int = 1
+):FormData
+
+
+@Serializable
+data class EditProfileResponse(
+    val success:Int,
+    val errmsg:String = ""
+)
+
+/**
+ * https://steamcommunity.com/actions/FileUploader
+ */
+data class UploadAvatarRequest(
+    //val avatar: InputStream// use .data()
+    val type:String = "player_avatar_image",
+    val sId:String,//steam id
+    val sessionid:String,
+    val doSub:Int = 1,
+    val json:Int = 1
+):FormData
+
+
+@Serializable
+data class UploadAvatarResponse(
+    val images: Images? = null,
+    val message: String = "",
+    val success: Boolean
+){
+    @Serializable
+    data class Images(
+        val `0`: String = "",
+        val full: String = "",
+        val medium: String = ""
+    )
+}
+
+
+/**
+ *  https://steamcommunity.com/groups/{groupName} //Anti-Player-RE
+ */
+data class JoinGroupRequest(
+    val sessionID:String,
+    val action:String = "join"
+):FormData
+
+//302 response -> HTML
 
 
 

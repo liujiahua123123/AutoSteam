@@ -22,9 +22,10 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
-import java.nio.charset.Charset
+import java.security.KeyFactory
+import java.security.spec.RSAPublicKeySpec
 import java.util.*
-import kotlin.random.Random
+import javax.crypto.Cipher
 
 
 interface FormData
@@ -37,13 +38,15 @@ fun Connection.data(formData: FormData){
 }
 
 @OptIn(InternalAPI::class)
-fun getRsaPublicKey(mod:String,exp:String,password: String):String{
-    /*
+fun steamPasswordRSA(mod:String, exp:String, password: String):String{
+
     val keyFactory = KeyFactory.getInstance("RSA")
-    var key = keyFactory.generatePublic(RSAPublicKeySpec(
+    var key = keyFactory.generatePublic(
+        RSAPublicKeySpec(
         BigInteger(mod,16),
         BigInteger(exp,16),//exp
-    ))
+    )
+    )
 
     val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
     cipher.init(Cipher.ENCRYPT_MODE, key)
@@ -52,20 +55,17 @@ fun getRsaPublicKey(mod:String,exp:String,password: String):String{
     val b64 = cipherData.encodeBase64()
     return b64
 
-
-
-     */
-
-    return RSA(mod,exp).encrypt(password)
+    //return RSA(mod,exp).encrypt(password)
 }
 
-val Json = Json {
+val SteamJson = Json {
     this.ignoreUnknownKeys = true
     this.isLenient = true
     this.encodeDefaults = true
+    this.ignoreUnknownKeys = true
 }
 
-inline fun <reified T : Any> String.deserialize(): T = Json.decodeFromString(this)
+inline fun <reified T : Any> String.deserialize(): T = SteamJson.decodeFromString(this)
 
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -210,15 +210,21 @@ open class Ksoup(
  * 增加了userAgents 自动记忆cookies
  */
 open class MockChromeClient : Ksoup() {
-    open val cookies = mutableMapOf<String,String>()
+    open val cookies = mutableMapOf<String,MutableMap<String,String>>()
+
+    /**
+     * Site => Cookies
+     */
+
     open val userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
 
     init {
         addResponseHandler{
-            cookies.putAll(it.cookies())
+            cookies.putIfAbsent(it.url().host, mutableMapOf())
+            cookies[it.url().host]!!.putAll(it.cookies())
         }
         addIntrinsic{
-            it.cookies(cookies)
+            it.cookies(cookies.getOrDefault(it.request().url().host, emptyMap<String,String>()))
             it.userAgent(userAgent)
             it.header("sec-ch-ua","\" Not;A Brand\";v=\"99\", \"Google Chrome\";v=\"91\", \"Chromium\";v=\"91\"")
             it.header("sec-ch-ua-mobile","?0")
@@ -264,7 +270,6 @@ open class SteamStoreClient: SteamClient(){
 
     init {
         addIntrinsic{
-            it.header("Host","store.steampowered.com")
             it.header("Origin","https://store.steampowered.com")
             it.header("Referer",referer)
         }
@@ -272,6 +277,12 @@ open class SteamStoreClient: SteamClient(){
 }
 
 
+/*
+/**
+ * Code from Github, Java Steam Account Generator
+ * Add random to replace constant 0x01
+ *
+ */
 internal class RSA(modHex: String?, expHex: String?) {
     private val modulus: BigInteger
     private val exponent: BigInteger
@@ -322,5 +333,7 @@ internal class RSA(modHex: String?, expHex: String?) {
         exponent = BigInteger(expHex, 16)
     }
 }
+
+ */
 
 
