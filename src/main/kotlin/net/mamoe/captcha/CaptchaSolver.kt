@@ -1,11 +1,10 @@
 package net.mamoe.captcha
 
 import APIKEY_2CAP
+import Ksoup
+import decode
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
-import net.mamoe.Ksoup
-import net.mamoe.SteamStoreClient
-import net.mamoe.decode
 
 interface CaptchaSolver{
 

@@ -1,8 +1,8 @@
 package net.mamoe.email
 
+import Ksoup
 import kotlinx.coroutines.time.delay
 import kotlinx.serialization.Serializable
-import net.mamoe.Ksoup
 import net.mamoe.decode
 import java.time.Duration
 

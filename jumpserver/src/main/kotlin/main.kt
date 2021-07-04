@@ -1,5 +1,9 @@
 package myproxy
 
+import JUMPSERVER_HEADER
+import Ksoup
+import PortableRequest
+import applyPortable
 import io.ktor.application.*
 import io.ktor.features.*
 import io.ktor.http.*
@@ -12,7 +16,12 @@ import io.ktor.server.netty.*
 import io.ktor.util.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.jvm.javaio.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import ksoupJson
+import okhttp3.Dispatcher
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -48,64 +57,58 @@ object Main {
 
                             val request = call.request
 
-                            println(target)
-                            request.headers.forEach { s, list ->
-                                println(s)
-                                println(list)
-                            }
-
+                            val ksoup = Ksoup()
 
                             kotlin.runCatching {
-                                /*
-                                client.request<HttpResponse> {
-                                    url(target)
-                                    method = request.httpMethod
-                                    headers.appendAll(request.headers.filter { s, s2 ->
-                                        //!s.equals("Host", ignoreCase = true) &&
-                                        !s.equals("jumpserver-target", ignoreCase = true) &&
-                                        !s.equals("Content-Type",ignoreCase = true)
-                                    })
-                                    body = object : OutgoingContent.ReadChannelContent() {
-                                        override fun readFrom(): ByteReadChannel = request.receiveChannel()
-                                        override val contentType: ContentType get() = request.contentType()
+                                ksoup.request(target){
+                                    request.cookies.rawCookies.forEach { (key, value_) ->
+                                        val value = decodeCookieValue(value_,CookieEncoding.URI_ENCODING)
+                                        //println("Cookie $key = $value")
+                                        this.cookie(key,value)
                                     }
-                                }
-
-                                 */
-
-                                val client =  HttpClient.newHttpClient()
-                                val x = client.send<String>(HttpRequest
-                                    .newBuilder(URI(target))
-                                    .method(request.httpMethod.value,HttpRequest.BodyPublishers.ofInputStream {
-                                        request.receiveChannel().toInputStream()
-                                    })
-                                    .apply {
-                                        request.headers.forEach{ s, s2 ->
-                                            //!s.equals("Host", ignoreCase = true) &&
-                                            if(
-                                                !s.equals("jumpserver-target", ignoreCase = true) &&
-                                                !s.equals("Content-Type",ignoreCase = true)
-                                            ){
-                                                header(s,s2.joinToString(" "))
-                                            }
+                                    request.headers.forEach { headerKey, headerSplitValue ->
+                                        if(
+                                            headerKey != JUMPSERVER_HEADER &&
+                                            !headerKey.equals("content-length",ignoreCase = true) &&
+                                            !headerKey.equals("host",ignoreCase = true)
+                                        ) {
+                                            //println("Header " +headerKey + " = " +  headerSplitValue.joinToString(" "))
+                                            this.header(headerKey, headerSplitValue.joinToString(" "))
                                         }
                                     }
-                                    .build()
-                                    ,HttpResponse.BodyHandlers.ofString())
-                                println(x)
+
+                                    val body = withContext(Dispatchers.IO) {
+                                        val text = String(call.receiveStream().readBytes(), Charsets.UTF_8)
+                                        ksoupJson.decodeFromString<PortableRequest>(text)
+                                    }
+
+                                    this.request().applyPortable(body)
+                                }
 
                             }.fold(
                                 onSuccess = { result ->
-                                    /*
+                                    result.cookies().forEach { (k, v) ->
+                                        //println("Return Cookie " + k + " = " + v)
+                                        call.response.cookies.append(
+                                            Cookie(k,v)
+                                        )
+                                    }
+                                    result.headers().forEach { k, v ->
+                                        if(!k.equals("content-length",ignoreCase = true) &&
+                                            !k.equals("content-type",ignoreCase = true) &&
+                                            !k.equals("Content-Encoding",ignoreCase = true)
+                                        ){
+                                            //println("Return Header " + k + " = " + v)
+                                            call.response.header(k, v)
+                                        }
+                                    }
                                     call.respond(
-                                        object : OutgoingContent.ReadChannelContent() {
-                                            override fun readFrom(): ByteReadChannel = result.content
-                                            override val contentType: ContentType? get() = result.contentType()
-                                            override val status: HttpStatusCode get() = result.status
+                                        object : OutgoingContent.ByteArrayContent() {
+                                            override val contentType: ContentType get() = ContentType.parse(result.contentType())
+                                            override val status: HttpStatusCode get() = HttpStatusCode(result.statusCode(),result.statusMessage())
+                                            override fun bytes() = result.bodyAsBytes()
                                         }
                                     )
-
-                                     */
                                 },
                                 onFailure = { e ->
                                     call.respond(

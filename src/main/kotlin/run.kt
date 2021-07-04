@@ -74,7 +74,6 @@ suspend fun main(){
         client.cookies.clear()
         delay(Duration.ofMillis(10000))
 
-        Jsoup.connect().requestBody()
     }
 }
 

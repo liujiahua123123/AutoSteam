@@ -6,14 +6,18 @@ import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import org.jsoup.Connection
 import org.jsoup.Jsoup
+import org.jsoup.helper.HttpConnection
+import java.io.InputStream
 import java.net.SocketException
 import java.net.URL
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import javax.xml.crypto.dsig.keyinfo.KeyValue
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+
 
 val ksoupJson = Json {
     this.ignoreUnknownKeys = true
@@ -111,8 +115,17 @@ open class Ksoup(
 
             if(applyJumpServerAddress != null && applyJumpServerAddress.isNotEmpty()){
                 val original = conn.request().url().toString()
+                val request = conn.request()
                 conn.header(JUMPSERVER_HEADER,original)
-                conn.request().url(URL(applyJumpServerAddress.replace("jumpserver://","http://")))
+
+                //redirect to jump server
+                request.url(URL(applyJumpServerAddress.replace("jumpserver://","http://")))
+                val jumpData = ksoupJson.encodeToString(request.toPortable())
+
+                //changed to a jump server body
+                request.data().clear()
+                request.method(Connection.Method.POST)
+                request.requestBody(jumpData)
             }
         }
         responseHandlers.add { resp ->
@@ -236,4 +249,53 @@ open class MockChromeClient : Ksoup() {
     }
 }
 
+@Serializable
+data class PortableRequest(
+    val requestBody:String?,
+    val requestData:List<PortableKeyVal>,
+    val postCharset:String,
+    val maxBodySize:Int,
+    val method:Connection.Method,
+    val timeout:Int
+){
+    companion object{
+        @Serializable
+        data class PortableKeyVal(
+            val key: String,
+            val value: String?,
+            val inputStream: ByteArray?,
+            val contentType: String?
+        )
+    }
+}
 
+fun Connection.Request.toPortable():PortableRequest{
+    return PortableRequest(
+        requestBody = this.requestBody(),
+        maxBodySize = this.maxBodySize(),
+        postCharset = this.postDataCharset(),
+        requestData = this.data().map {
+            PortableRequest.Companion.PortableKeyVal(it.key(),it.value(), it.inputStream()?.readAllBytes(),it.contentType())
+        },
+        method = this.method(),
+        timeout = this.timeout()
+    )
+}
+
+fun Connection.Request.applyPortable(portableRequest: PortableRequest){
+    this.maxBodySize(portableRequest.maxBodySize)
+    this.requestBody(portableRequest.requestBody)
+    this.postDataCharset(portableRequest.postCharset)
+    this.method(portableRequest.method)
+    this.timeout(portableRequest.timeout)
+
+    portableRequest.requestData.map {
+        if(it.inputStream!=null) {
+            HttpConnection.KeyVal.create(it.key, it.value,it.inputStream.inputStream())
+        }else{
+            HttpConnection.KeyVal.create(it.key, it.value)
+        }
+    }.forEach {
+        this.data(it)
+    }
+}
