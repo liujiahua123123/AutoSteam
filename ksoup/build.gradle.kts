@@ -24,7 +24,7 @@ val serializationVersion = "1.0.0"
 fun kotlinx(id: String, version: String) = "org.jetbrains.kotlinx:kotlinx-$id:$version"
 
 dependencies {
-    implementation("io.ktor:ktor-server-netty:1.4.0")
+    implementation("io.ktor:ktor-server-netty:1.6.0")
     api(kotlinx("serialization-core", serializationVersion))
     api(kotlinx("serialization-json", serializationVersion))
     api("org.jsoup:jsoup:1.13.1")

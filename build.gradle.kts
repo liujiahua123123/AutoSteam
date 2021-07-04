@@ -8,10 +8,10 @@ repositories {
 }
 
 plugins {
-    kotlin("jvm") version "1.4.30"
+    kotlin("jvm") version "1.5.20"
+    kotlin("plugin.serialization") version "1.5.20"
     application
     id("com.github.johnrengelman.shadow") version "6.1.0"
-    kotlin("plugin.serialization") version "1.4.30"
 }
 
 fun kotlinx(id: String, version: String) = "org.jetbrains.kotlinx:kotlinx-$id:$version"
@@ -30,12 +30,12 @@ repositories {
     }
 }
 
-val serializationVersion = "1.0.0"
+val serializationVersion = "1.2.1"
 
 dependencies {
     testImplementation(kotlin("test-junit"))
-    implementation("io.ktor:ktor-server-netty:1.4.0")
-    implementation("io.ktor:ktor-html-builder:1.4.0")
+    implementation("io.ktor:ktor-server-netty:1.6.0")
+    implementation("io.ktor:ktor-html-builder:1.6.0")
     implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:0.7.2")
     implementation("com.github.davidmoten:subethasmtp:6.0.0")
     implementation("tech.blueglacier:email-mime-parser:1.0.5")
