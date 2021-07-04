@@ -118,6 +118,7 @@ suspend fun doProfile(username:String, password:String){
             data(r.transfer_parameters)
             header("host",host)
             header("referer",referer)
+            timeout(120_000)
         }
         println("Redirecting Login to $it")
     }

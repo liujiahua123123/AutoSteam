@@ -21,7 +21,6 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
-import io.ktor.util.*
 import io.ktor.util.pipeline.*
 import io.ktor.utils.io.streams.*
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +28,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import ksoupJson
 import java.io.File
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -59,7 +60,8 @@ object Main {
 
                             println("Received a request for" + target)
 
-                            doReqKtor(target, request)
+                            doReqKsoup(target, request)
+//                            doReqKtor(target, request)
                         }
                     }
                 }
@@ -108,6 +110,7 @@ object Main {
                     )
                 }
                 maxBodySize(1200000)
+                timeout(120_000)
 
                 println("Sending Request")
                 this.request().data().forEach {
@@ -167,6 +170,9 @@ object Main {
 
             val cookies = AcceptAllCookiesStorage()
             HttpClient(OkHttp) {
+                engine {
+                    proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress.createUnresolved("127.0.0.1", 7890))
+                }
                 install(HttpCookies) {
                     storage = cookies
                 }
@@ -234,26 +240,30 @@ object Main {
             }
         }.fold(
             onSuccess = { result ->
-                println("success result")
-                result.setCookie().forEach { (k, v) ->
-                    println("Return Cookie $k = $v")
-                    call.response.cookies.append(Cookie(k, v))
-                }
-                result.headers.forEach { k, v ->
-                    if (!k.equals("content-length", ignoreCase = true) &&
-                        !k.equals("content-type", ignoreCase = true) &&
-                        !k.equals("Content-Encoding", ignoreCase = true)
-                    ) {
-                        println("Return Header " + k + " = " + v)
-                        v.forEach {
-                            call.response.header(k, it)
+                kotlin.runCatching {
+                    println("success result")
+                    result.setCookie().forEach { (k, v) ->
+                        println("Return Cookie $k = $v")
+                        call.response.cookies.append(Cookie(k, v))
+                    }
+                    result.headers.forEach { k, v ->
+                        if (!k.equals("content-length", ignoreCase = true) &&
+                            !k.equals("content-type", ignoreCase = true) &&
+                            !k.equals("Content-Encoding", ignoreCase = true)
+                        ) {
+                            println("Return Header " + k + " = " + v)
+                            v.forEach {
+                                call.response.header(k, it)
+                            }
                         }
                     }
-                }
-                call.response.header(JUMPFOR_HEADER, target)
+                    call.response.header(JUMPFOR_HEADER, target)
+                    val resultBody = result.receive<String>()
+                    println(resultBody)
 
-                call.respond(
-                    String(result.content.toByteArray())
+                    call.respond(
+                        HttpStatusCode.OK,
+                        resultBody
 //                    object : OutgoingContent.ReadChannelContent() {
 //                        override val contentType: ContentType get() = result.contentType() ?: ContentType.Any
 //                        override val status: HttpStatusCode
@@ -261,7 +271,11 @@ object Main {
 //
 //                        override fun readFrom(): ByteReadChannel = result.content
 //                    }
-                )
+                    )
+                }.onFailure {
+                    println("Failed to give result back")
+                    it.printStackTrace()
+                }
             },
             onFailure = { e ->
                 println("error result")
