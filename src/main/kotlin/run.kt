@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import net.mamoe.*
 import net.mamoe.email.MailService
+import net.mamoe.server.SessionReceiveServer
 import net.mamoe.steam.*
 import java.io.File
 import java.security.SecureRandom
@@ -23,6 +24,7 @@ val client = SteamStoreClient().apply {
     referer = "https://store.steampowered.com/join/"
     addIntrinsic{
         println("[NETWORK] -> Connect " + it.request().url())
+        it.proxy("107.174.146.144",3128)
     }
     addResponseHandler{
         println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
@@ -45,9 +47,15 @@ val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
 suspend fun main(){
     fixJava()
 
+    //SessionReceiveServer.start(true)
+
+
     while (true) {
         val accounts = file.readText().deserialize<MutableList<Account>>()
-        val next = accounts.firstOrNull { !it.profiled } ?: error("No account to done")
+        val unprofiled = accounts.filter { !it.profiled }
+        println("There are  $unprofiled accounts need to be handled")
+
+        val next = unprofiled.firstOrNull()?: error("No account to done")
 
         println("start handle: $next")
         doProfile(next.username, next.password)
@@ -60,6 +68,8 @@ suspend fun main(){
         client.cookies.clear()
         delay(Duration.ofMillis(10000))
     }
+
+
 }
 
 
@@ -146,6 +156,8 @@ suspend fun doProfile(username:String, password:String){
     }.decode<UploadAvatarResponse>()
     if(upload.success){
         println("successfully changed avatar")
+    }else{
+        error("IP BANNED for upload")
     }
 
     client.post("https://steamcommunity.com/groups/Anti-Player-RE"){

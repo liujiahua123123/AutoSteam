@@ -78,12 +78,28 @@ inline fun <reified T:Any> Connection.Response.decode():T{
     return body().deserialize()
 }
 
+/**
+ * HTTP协议的扩充 - Him188JumpServer
+ *
+ */
+
+/**
+ * Apply a jump server
+ */
+const val JUMPSERVER_HEADER = "jumpserver-target"
+const val JUMPSERVER_ERROR_STATUS_CODE = 881
+
+
+fun Connection.Request.jumpServer(ip:String, port:Short) {
+    header(JUMPSERVER_HEADER, "jumpserver://$ip:$port")
+}
 
 open class Ksoup(
 
 ){
     internal val intrinsics = mutableListOf<IntrinsicHandler>()
-    internal val responseHandler = mutableListOf<ResponseHandler>()
+    internal val responseHandlers = mutableListOf<ResponseHandler>()
+    internal val requestOverriders = mutableListOf<RequestOverrider>()
 
     fun interface IntrinsicHandler {
         operator fun Ksoup.invoke(p2: Connection)
@@ -93,12 +109,18 @@ open class Ksoup(
         operator fun Ksoup.invoke(p2: Connection.Response)
     }
 
+    fun interface RequestOverrider {
+        operator fun Ksoup.invoke(p2: Connection)
+    }
+
+
+
     fun addIntrinsic(block: IntrinsicHandler) {
         intrinsics.add(block)
     }
 
     fun addResponseHandler(block: ResponseHandler){
-        responseHandler.add(block)
+        responseHandlers.add(block)
     }
 
     @PublishedApi
@@ -109,7 +131,13 @@ open class Ksoup(
 
     @PublishedApi
     internal fun Connection.Response.applyHandlers(): Connection.Response{
-        responseHandler.forEach { it.run { this@Ksoup(this@applyHandlers) } }
+        responseHandlers.forEach { it.run { this@Ksoup(this@applyHandlers) } }
+        return this
+    }
+
+    @PublishedApi
+    internal fun Connection.applyOverrides():Connection{
+        requestOverriders.forEach { it.run { this@Ksoup(this@applyOverrides) } }
         return this
     }
 
@@ -118,36 +146,50 @@ open class Ksoup(
             conn.ignoreContentType(true)
             conn.ignoreHttpErrors(true)
         }
+        requestOverriders.add{ conn ->
+            val applyJumpServerAddress = conn.request().header(JUMPSERVER_HEADER)
+
+            if(applyJumpServerAddress != null){
+                val original = conn.request().url().toString()
+                conn.header(JUMPSERVER_HEADER,original)
+                conn.url(applyJumpServerAddress.replace("jumpserver://","http://"))
+            }
+        }
+        responseHandlers.add { resp ->
+            if (resp.statusCode() == JUMPSERVER_ERROR_STATUS_CODE) {
+                throw SocketException("Jump Server Error" + resp.body())
+            }
+        }
     }
 
     suspend inline fun get(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        return Jsoup.connect(url).apply { method(GET) }.applyIntrinsics().apply(block).executeSuspend(threadPool)
+        return Jsoup.connect(url).apply { method(GET) }.applyIntrinsics().apply(block).applyOverrides().executeSuspend(threadPool)
     }
 
     suspend inline fun request(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        return Jsoup.connect(url).applyIntrinsics().apply(block).executeSuspend(threadPool)
+        return Jsoup.connect(url).applyIntrinsics().apply(block).applyOverrides().executeSuspend(threadPool)
     }
 
     suspend inline fun post(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        return Jsoup.connect(url).apply { method(POST) }.applyIntrinsics().apply(block).executeSuspend(threadPool)
+        return Jsoup.connect(url).apply { method(POST) }.applyIntrinsics().apply(block).applyOverrides().executeSuspend(threadPool)
     }
 
     suspend inline fun put(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        return Jsoup.connect(url).apply { method(PUT) }.applyIntrinsics().apply(block).executeSuspend(threadPool)
+        return Jsoup.connect(url).apply { method(PUT) }.applyIntrinsics().apply(block).applyOverrides().executeSuspend(threadPool)
     }
 
     suspend inline fun delete(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        return Jsoup.connect(url).apply { method(DELETE) }.applyIntrinsics().apply(block).executeSuspend(threadPool)
+        return Jsoup.connect(url).apply { method(DELETE) }.applyIntrinsics().apply(block).applyOverrides().executeSuspend(threadPool)
     }
 
     suspend inline fun options(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        return Jsoup.connect(url).apply { method(OPTIONS) }.applyIntrinsics().apply(block).executeSuspend(threadPool)
+        return Jsoup.connect(url).apply { method(OPTIONS) }.applyIntrinsics().apply(block).applyOverrides().executeSuspend(threadPool)
     }
 
     companion object {
@@ -248,7 +290,7 @@ open class SteamClient: MockChromeClient(){
     @OptIn(ExperimentalContracts::class)//BUG
     suspend inline fun ajax(url: String, block: Connection.() -> Unit = {}): Connection.Response {
         contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-        return Jsoup.connect(url).apply { method(POST) }.apply {
+        return this.post(url){
             data("count",nextAjaxCount())
             header("X-Requested-With","XMLHttpRequest")
             header("X-Prototype-Version","1.7")
@@ -256,7 +298,8 @@ open class SteamClient: MockChromeClient(){
             header("Accept-Encoding","gzip, deflate, br")
             header("Accept-Language","zh-CN,zh;q=0.9")
             header("Cache-Control","no-cache")
-        }.applyIntrinsics().apply(block).executeSuspend(threadPool)
+            block.invoke(this)
+        }
     }
 }
 
