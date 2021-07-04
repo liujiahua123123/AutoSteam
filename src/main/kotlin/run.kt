@@ -55,7 +55,7 @@ suspend fun main(){
     client.addIntrinsic{conn ->
         conn.timeout(30000)
         //conn.jumpServer("107.174.146.144",8188)
-        conn.jumpServer("127.0.0.1",8188)
+        //conn.jumpServer("127.0.0.1",8188)
         //conn.proxy("107.174.146.144",3128)
     }
 
@@ -89,7 +89,6 @@ suspend fun doProfile(username:String, password:String){
             username = username
         ))
     }.decode<GetRsaKeyResponse>()
-
 
     val ps = steamPasswordRSA(d.publickey_mod,d.publickey_exp,password)
     println(ps)
@@ -160,6 +159,11 @@ suspend fun doProfile(username:String, password:String){
         data("avatar","MyAva.jpg",File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes().inputStream())
         maxBodySize(1024*10)
         timeout(120000)
+
+        val p = request().toPortable()
+        this.request().data().clear()
+        this.applyPortable(p)
+
     }.decode<UploadAvatarResponse>()
     if(upload.success){
         println("successfully changed avatar")

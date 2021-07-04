@@ -3,6 +3,7 @@ package myproxy
 import JUMPFOR_HEADER
 import JUMPSERVER_HEADER
 import Ksoup
+import MockChromeClient
 import PortableRequest
 import applyPortable
 import io.ktor.application.*
@@ -23,6 +24,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import ksoupJson
 import okhttp3.Dispatcher
+import org.jsoup.Connection
+import toPortable
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -32,16 +35,22 @@ import java.security.AccessController
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
+import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
+
 
 object Main {
     @JvmStatic
     fun main(args: Array<String>) {
         fixJava()
         //val client = HttpClient()
+
 
 
         embeddedServer(Netty, environment = applicationEngineEnvironment {
@@ -60,7 +69,21 @@ object Main {
                             val request = call.request
 
                             println("Received a request for" + target )
-                            val ksoup = Ksoup()
+                            val ksoup = SteamStoreClient().apply {
+                                referer = "https://store.steampowered.com/join/"
+                                addIntrinsic {
+                                    println("[NETWORK] -> Connect " + it.request().url())
+                                }
+                                addResponseHandler {
+                                    println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
+                                    if (it.body().contains("<!DOCTYPE html>")) {
+                                        println("[NETWORK] <- Receive HTML")
+                                    } else {
+                                        println("[NETWORK] <- Receive " + it.body())
+                                    }
+                                }
+                            }
+
 
                             kotlin.runCatching {
                                 try {
@@ -87,11 +110,19 @@ object Main {
                                         }
 
                                         this.applyPortable(body)
-                                        if(target == "https://steamcommunity.com/actions/FileUploader"){
-                                            println("I write addtional")
-                                            data("avatar","MyAva.jpg", File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes().inputStream())
+
+                                        if(body.method!=Connection.Method.GET) {
+                                            data(
+                                                "avatar",
+                                                "MyAva.jpg",
+                                                File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes()
+                                                    .inputStream()
+                                            )
                                         }
-                                        maxBodySize(1200000)
+
+                                        println("From: " + body)
+                                        println("To: " + this.request().toPortable())
+
 
                                         println("Sending Request")
                                         this.request().data().forEach {
@@ -183,3 +214,45 @@ fun fixJava() {
     HttpsURLConnection.setDefaultSSLSocketFactory(context.socketFactory)
     HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
 }
+
+/**
+ * Steam特制的Client, 增加了steam独有的ajax参数
+ */
+open class SteamClient: MockChromeClient(){
+    internal val ajaxCounter = AtomicInteger(1)
+
+    @PublishedApi
+    internal fun nextAjaxCount():String = "" + ajaxCounter.addAndGet(1)
+
+    @OptIn(ExperimentalContracts::class)//BUG
+    suspend inline fun ajax(url: String, block: Connection.() -> Unit = {}): Connection.Response {
+        contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+        return this.post(url){
+            data("count",nextAjaxCount())
+            header("X-Requested-With","XMLHttpRequest")
+            header("X-Prototype-Version","1.7")
+            header("accept","text/javascript, text/html, application/xml, text/xml, */*")
+            header("Accept-Encoding","gzip, deflate, br")
+            header("Accept-Language","zh-CN,zh;q=0.9")
+            header("Cache-Control","no-cache")
+            block.invoke(this)
+        }
+    }
+}
+
+
+/**
+ * Steam Store 特制的Client, 自动添加headers
+ */
+open class SteamStoreClient: SteamClient(){
+
+    var referer = "https://store.steampowered.com"
+
+    init {
+        addIntrinsic{
+            it.header("Origin","https://store.steampowered.com")
+            it.header("Referer",referer)
+        }
+    }
+}
+
