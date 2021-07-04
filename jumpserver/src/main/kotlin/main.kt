@@ -1,9 +1,6 @@
 package myproxy
 
 import io.ktor.application.*
-import io.ktor.client.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.features.*
 import io.ktor.http.*
 import io.ktor.http.content.*
@@ -14,7 +11,13 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.util.*
 import io.ktor.utils.io.*
+import io.ktor.utils.io.jvm.javaio.*
 import kotlinx.coroutines.runBlocking
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.security.AccessController
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -22,13 +25,13 @@ import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
-import kotlin.concurrent.thread
 
 object Main {
     @JvmStatic
     fun main(args: Array<String>) {
         fixJava()
-        val client = HttpClient()
+        //val client = HttpClient()
+
 
         embeddedServer(Netty, environment = applicationEngineEnvironment {
             connector {
@@ -46,12 +49,18 @@ object Main {
                             val request = call.request
 
                             println(target)
+                            request.headers.forEach { s, list ->
+                                println(s)
+                                println(list)
+                            }
+
                             kotlin.runCatching {
+                                /*
                                 client.request<HttpResponse> {
                                     url(target)
                                     method = request.httpMethod
                                     headers.appendAll(request.headers.filter { s, s2 ->
-                                        !s.equals("Host", ignoreCase = true) &&
+                                        //!s.equals("Host", ignoreCase = true) &&
                                         !s.equals("jumpserver-target", ignoreCase = true) &&
                                         !s.equals("Content-Type",ignoreCase = true)
                                     })
@@ -60,8 +69,33 @@ object Main {
                                         override val contentType: ContentType get() = request.contentType()
                                     }
                                 }
+
+                                 */
+
+                                val client =  HttpClient.newHttpClient()
+                                val x = client.send<String>(HttpRequest
+                                    .newBuilder(URI(target))
+                                    .method(request.httpMethod.value,HttpRequest.BodyPublishers.ofInputStream {
+                                        request.receiveChannel().toInputStream()
+                                    })
+                                    .apply {
+                                        request.headers.forEach{ s, s2 ->
+                                            //!s.equals("Host", ignoreCase = true) &&
+                                            if(
+                                                !s.equals("jumpserver-target", ignoreCase = true) &&
+                                                !s.equals("Content-Type",ignoreCase = true)
+                                            ){
+                                                header(s,s2.joinToString(" "))
+                                            }
+                                        }
+                                    }
+                                    .build()
+                                    ,HttpResponse.BodyHandlers.ofString())
+                                println(x)
+
                             }.fold(
                                 onSuccess = { result ->
+                                    /*
                                     call.respond(
                                         object : OutgoingContent.ReadChannelContent() {
                                             override fun readFrom(): ByteReadChannel = result.content
@@ -69,12 +103,15 @@ object Main {
                                             override val status: HttpStatusCode get() = result.status
                                         }
                                     )
+
+                                     */
                                 },
                                 onFailure = { e ->
                                     call.respond(
                                         HttpStatusCode(881, "Request error"),
                                         e.toString()
                                     )
+                                    e.printStackTrace()
                                 }
                             )
                         }
@@ -90,6 +127,7 @@ object Main {
 fun fixJava() {
     //headers: referer
     System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
+    System.setProperty("jdk.httpclient.allowRestrictedHeaders", "connection,content-length,expect,host,upgrade")
 
 
     //proxy

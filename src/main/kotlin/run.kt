@@ -53,7 +53,7 @@ suspend fun main(){
     //SessionReceiveServer.start(true)
 
     client.addIntrinsic{conn ->
-        conn.jumpServer("107.174.146.144",8188)
+        conn.jumpServer("127.0.0.1",8188)
     }
 
     while (true) {
@@ -73,6 +73,8 @@ suspend fun main(){
         println("finish handle: $next")
         client.cookies.clear()
         delay(Duration.ofMillis(10000))
+
+        Jsoup.connect().requestBody()
     }
 }
 
