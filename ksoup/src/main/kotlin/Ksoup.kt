@@ -306,7 +306,7 @@ fun Connection.applyPortable(portableRequest: PortableRequest){
     portableRequest.requestData.forEach {
         if(it.inputStream!=null) {
             println("Write InputStream Body")
-            //data(it.key, it.value,it.inputStream.inputStream())
+            data(it.key, it.value,it.inputStream.inputStream())
             //data("avatar","MyAva.jpg",File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes().inputStream())
         }else{
             this.data(it.key, it.value)
