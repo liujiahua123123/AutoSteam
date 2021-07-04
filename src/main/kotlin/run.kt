@@ -1,4 +1,5 @@
 
+import io.ktor.http.*
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.withContext
@@ -7,7 +8,10 @@ import net.mamoe.*
 import net.mamoe.email.MailService
 import net.mamoe.server.SessionReceiveServer
 import net.mamoe.steam.*
+import org.jsoup.Connection
+import org.jsoup.Jsoup
 import java.io.File
+import java.net.URL
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -24,7 +28,6 @@ val client = SteamStoreClient().apply {
     referer = "https://store.steampowered.com/join/"
     addIntrinsic{
         println("[NETWORK] -> Connect " + it.request().url())
-        it.proxy("107.174.146.144",3128)
     }
     addResponseHandler{
         println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
@@ -49,6 +52,9 @@ suspend fun main(){
 
     //SessionReceiveServer.start(true)
 
+    client.addIntrinsic{conn ->
+        conn.jumpServer("107.174.146.144",8188)
+    }
 
     while (true) {
         val accounts = file.readText().deserialize<MutableList<Account>>()
@@ -68,8 +74,6 @@ suspend fun main(){
         client.cookies.clear()
         delay(Duration.ofMillis(10000))
     }
-
-
 }
 
 

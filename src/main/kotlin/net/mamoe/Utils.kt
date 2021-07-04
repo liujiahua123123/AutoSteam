@@ -91,8 +91,13 @@ const val JUMPSERVER_ERROR_STATUS_CODE = 881
 
 
 fun Connection.Request.jumpServer(ip:String, port:Short) {
-    header(JUMPSERVER_HEADER, "jumpserver://$ip:$port")
+    header(JUMPSERVER_HEADER, "jumpserver://$ip:$port/request")
 }
+
+fun Connection.jumpServer(ip:String, port:Short) {
+    header(JUMPSERVER_HEADER, "jumpserver://$ip:$port/request")
+}
+
 
 open class Ksoup(
 
@@ -149,10 +154,10 @@ open class Ksoup(
         requestOverriders.add{ conn ->
             val applyJumpServerAddress = conn.request().header(JUMPSERVER_HEADER)
 
-            if(applyJumpServerAddress != null){
+            if(applyJumpServerAddress != null && applyJumpServerAddress.isNotEmpty()){
                 val original = conn.request().url().toString()
                 conn.header(JUMPSERVER_HEADER,original)
-                conn.url(applyJumpServerAddress.replace("jumpserver://","http://"))
+                conn.request().url(URL(applyJumpServerAddress.replace("jumpserver://","http://")))
             }
         }
         responseHandlers.add { resp ->
@@ -268,11 +273,11 @@ open class MockChromeClient : Ksoup() {
         addIntrinsic{
             it.cookies(cookies.getOrDefault(it.request().url().host, emptyMap<String,String>()))
             it.userAgent(userAgent)
-            it.header("sec-ch-ua","\" Not;A Brand\";v=\"99\", \"Google Chrome\";v=\"91\", \"Chromium\";v=\"91\"")
-            it.header("sec-ch-ua-mobile","?0")
-            it.header("Sec-Fetch-Dest","empty")
-            it.header("Sec-Fetch-Mode","cors")
-            it.header("Sec-Fetch-Site","same-origin")
+            //it.header("sec-ch-ua","\" Not;A Brand\";v=\"99\", \"Google Chrome\";v=\"91\", \"Chromium\";v=\"91\"")
+            //it.header("sec-ch-ua-mobile","?0")
+            //it.header("Sec-Fetch-Dest","empty")
+            //it.header("Sec-Fetch-Mode","cors")
+            //it.header("Sec-Fetch-Site","same-origin")
         }
     }
 }
@@ -313,8 +318,8 @@ open class SteamStoreClient: SteamClient(){
 
     init {
         addIntrinsic{
-            it.header("Origin","https://store.steampowered.com")
-            it.header("Referer",referer)
+            //it.header("Origin","https://store.steampowered.com")
+            //it.header("Referer",referer)
         }
     }
 }

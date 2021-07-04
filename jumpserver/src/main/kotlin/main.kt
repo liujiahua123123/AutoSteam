@@ -36,7 +36,7 @@ object Main {
             }
             module {
                 routing {
-                    route("/request") {
+                    route("/") {
                         handle {
                             val target = call.request.headers["jumpserver-target"] ?: kotlin.run {
                                 call.respond(HttpStatusCode.BadRequest)
@@ -51,7 +51,9 @@ object Main {
                                     url(target)
                                     method = request.httpMethod
                                     headers.appendAll(request.headers.filter { s, s2 ->
-                                        !s.equals("Host", ignoreCase = true) && !s.equals("jumpserver-target", ignoreCase = true)
+                                        !s.equals("Host", ignoreCase = true) &&
+                                        !s.equals("jumpserver-target", ignoreCase = true) &&
+                                        !s.equals("Content-Type",ignoreCase = true)
                                     })
                                     body = object : OutgoingContent.ReadChannelContent() {
                                         override fun readFrom(): ByteReadChannel = request.receiveChannel()
