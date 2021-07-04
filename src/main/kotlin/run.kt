@@ -11,6 +11,7 @@ import net.mamoe.steam.*
 import org.jsoup.Connection
 import org.jsoup.Jsoup
 import java.io.File
+import java.net.Proxy
 import java.net.URL
 import java.security.SecureRandom
 import java.security.cert.CertificateException
@@ -50,10 +51,12 @@ val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
 suspend fun main(){
     fixJava()
 
-    //SessionReceiveServer.start(true)
 
     client.addIntrinsic{conn ->
+        conn.timeout(30000)
+        //conn.jumpServer("107.174.146.144",8188)
         conn.jumpServer("127.0.0.1",8188)
+        //conn.proxy("107.174.146.144",3128)
     }
 
     while (true) {
@@ -69,11 +72,10 @@ suspend fun main(){
         accounts.remove(next)
         accounts.add(next.copy(profiled = true))
 
-        file.writeText(SteamJson.encodeToString(accounts))
+        //file.writeText(SteamJson.encodeToString(accounts))
         println("finish handle: $next")
         client.cookies.clear()
         delay(Duration.ofMillis(10000))
-
     }
 }
 
@@ -155,7 +157,7 @@ suspend fun doProfile(username:String, password:String){
             sessionid = communitySessionId,
             sId = steamId
         ))
-        data("avatar","MyAva.jpg",File(System.getProperty("user.dir") + "/BlackHandVector.jpg").inputStream())
+        data("avatar","MyAva.jpg",File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes().inputStream())
         maxBodySize(1024*10)
         timeout(120000)
     }.decode<UploadAvatarResponse>()

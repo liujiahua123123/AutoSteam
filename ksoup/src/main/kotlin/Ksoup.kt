@@ -1,12 +1,14 @@
 @file:Suppress("MemberVisibilityCanBePrivate", "unused")
 @file:OptIn(ExperimentalContracts::class)
 
+import io.ktor.http.*
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import org.jsoup.Connection
 import org.jsoup.Jsoup
 import org.jsoup.helper.HttpConnection
+import java.io.File
 import java.io.InputStream
 import java.net.SocketException
 import java.net.URL
@@ -48,6 +50,7 @@ inline fun <reified T:Any> Connection.Response.decode():T{
  * Apply a jump server
  */
 const val JUMPSERVER_HEADER = "jumpserver-target"
+const val JUMPFOR_HEADER = "jumpserver-for"
 const val JUMPSERVER_ERROR_STATUS_CODE = 881
 
 
@@ -122,6 +125,7 @@ open class Ksoup(
                 request.url(URL(applyJumpServerAddress.replace("jumpserver://","http://")))
                 val jumpData = ksoupJson.encodeToString(request.toPortable())
 
+                println("redirect from $original to " + applyJumpServerAddress)
                 //changed to a jump server body
                 request.data().clear()
                 request.method(Connection.Method.POST)
@@ -234,8 +238,15 @@ open class MockChromeClient : Ksoup() {
 
     init {
         addResponseHandler{
-            cookies.putIfAbsent(it.url().host, mutableMapOf())
-            cookies[it.url().host]!!.putAll(it.cookies())
+            val uri:String = if(it.header(JUMPFOR_HEADER)!=null) {
+                val dis = it.header(JUMPFOR_HEADER)
+                println(dis)
+                URL(dis).host
+            }else{
+                it.url().host
+            }
+            cookies.putIfAbsent(uri, mutableMapOf())
+            cookies[uri]!!.putAll(it.cookies())
         }
         addIntrinsic{
             it.cookies(cookies.getOrDefault(it.request().url().host, emptyMap<String,String>()))
@@ -282,20 +293,23 @@ fun Connection.Request.toPortable():PortableRequest{
     )
 }
 
-fun Connection.Request.applyPortable(portableRequest: PortableRequest){
+fun Connection.applyPortable(portableRequest: PortableRequest){
     this.maxBodySize(portableRequest.maxBodySize)
-    this.requestBody(portableRequest.requestBody)
+    if(portableRequest.requestBody!=null) {
+        println("The request body " + portableRequest.requestBody)
+        this.requestBody(portableRequest.requestBody)
+    }
     this.postDataCharset(portableRequest.postCharset)
     this.method(portableRequest.method)
     this.timeout(portableRequest.timeout)
 
-    portableRequest.requestData.map {
+    portableRequest.requestData.forEach {
         if(it.inputStream!=null) {
-            HttpConnection.KeyVal.create(it.key, it.value,it.inputStream.inputStream())
+            println("Write InputStream Body")
+            //data(it.key, it.value,it.inputStream.inputStream())
+            //data("avatar","MyAva.jpg",File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes().inputStream())
         }else{
-            HttpConnection.KeyVal.create(it.key, it.value)
+            this.data(it.key, it.value)
         }
-    }.forEach {
-        this.data(it)
     }
 }
