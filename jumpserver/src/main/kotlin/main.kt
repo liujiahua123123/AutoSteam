@@ -93,7 +93,7 @@ object Main {
                                             Cookie(k,v)
                                         )
                                     }
-                                    result.headers().forEach { k, v ->
+                                    result.headers().forEach { (k, v) ->
                                         if(!k.equals("content-length",ignoreCase = true) &&
                                             !k.equals("content-type",ignoreCase = true) &&
                                             !k.equals("Content-Encoding",ignoreCase = true)
