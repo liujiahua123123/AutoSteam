@@ -55,7 +55,7 @@ suspend fun main(){
     client.addIntrinsic{conn ->
         conn.timeout(30000)
         //conn.jumpServer("107.174.146.144",8188)
-        //conn.jumpServer("127.0.0.1",8188)
+        conn.jumpServer("127.0.0.1",8188)
         //conn.proxy("107.174.146.144",3128)
     }
 

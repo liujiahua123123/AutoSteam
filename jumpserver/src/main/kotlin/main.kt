@@ -173,7 +173,19 @@ object Main {
                 val url = Url(target)
 
                 client.request<HttpResponse>(url) {
-                    headers.appendAll(request.headers)
+
+                    request.headers.forEach { headerKey, headerSplitValue ->
+                        if (
+                            !headerKey.equals(JUMPSERVER_HEADER, ignoreCase = true) &&
+                            !headerKey.equals("content-length", ignoreCase = true) &&
+                            !headerKey.equals("host", ignoreCase = true) &&
+                            !headerKey.equals("content-type", ignoreCase = true)
+                        ) {
+                            println("Header " + headerKey + " = " + headerSplitValue.joinToString(" "))
+                            header(headerKey, headerSplitValue.joinToString(" "))
+                        }
+                    }
+
                     request.cookies.rawCookies.forEach { (t, u) ->
                         cookie(t, decodeCookieValue(u, CookieEncoding.URI_ENCODING))
                     }
