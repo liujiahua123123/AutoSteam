@@ -20,8 +20,8 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.util.*
 import io.ktor.util.pipeline.*
-import io.ktor.utils.io.*
 import io.ktor.utils.io.streams.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -199,6 +199,9 @@ object Main {
                                                 ContentDisposition.File.withParameter(
                                                     ContentDisposition.Parameters.FileName,
                                                     it.value!!
+                                                ).withParameter(
+                                                    ContentDisposition.Parameters.Name,
+                                                    it.value!!
                                                 )
                                             )
                                         })
@@ -236,13 +239,14 @@ object Main {
                 }
                 call.response.header(JUMPFOR_HEADER, target)
                 call.respond(
-                    object : OutgoingContent.ReadChannelContent() {
-                        override val contentType: ContentType get() = result.contentType() ?: ContentType.Any
-                        override val status: HttpStatusCode
-                            get() = result.status
-
-                        override fun readFrom(): ByteReadChannel = result.content
-                    }
+                    result.content.toByteArray().toString()
+//                    object : OutgoingContent.ReadChannelContent() {
+//                        override val contentType: ContentType get() = result.contentType() ?: ContentType.Any
+//                        override val status: HttpStatusCode
+//                            get() = result.status
+//
+//                        override fun readFrom(): ByteReadChannel = result.content
+//                    }
                 )
             },
             onFailure = { e ->
