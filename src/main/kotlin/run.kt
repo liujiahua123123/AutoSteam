@@ -165,6 +165,7 @@ suspend fun doProfile(username:String, password:String){
         this.request().data().clear()
         this.applyPortable(p)
 
+
     }.decode<UploadAvatarResponse>()
     if(upload.success){
         println("successfully changed avatar")

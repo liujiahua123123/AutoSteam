@@ -27,6 +27,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import ksoupJson
+import org.jsoup.Connection
+import org.jsoup.Jsoup
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.Proxy
@@ -57,8 +59,7 @@ object Main {
                             }
 
                             val request = call.request
-
-                            println("Received a request for" + target)
+                            //println("Received a request for" + target)
 
                             doReqKsoup(target, request)
 //                            doReqKtor(target, request)
@@ -78,52 +79,47 @@ object Main {
         kotlin.runCatching {
             val ksoup = Ksoup()
             ksoup.request(target) {
+                val cookie = mutableMapOf<String,String>()
                 request.cookies.rawCookies.forEach { (key, value_) ->
                     val value = decodeCookieValue(value_, CookieEncoding.URI_ENCODING)
-                    println("Cookie $key = $value")
+                    //println("Cookie $key = $value")
                     this.cookie(key, value)
+                    cookie.put(key,value)
                 }
+                val body = withContext(Dispatchers.IO) {
+                    val text = String(call.receiveStream().readBytes(), Charsets.UTF_8)
+                    ksoupJson.decodeFromString<PortableRequest>(text)
+                }
+                this.applyPortable(body)
+
                 request.headers.forEach { headerKey, headerSplitValue ->
                     if (
                         !headerKey.equals(JUMPSERVER_HEADER, ignoreCase = true) &&
                         !headerKey.equals("content-length", ignoreCase = true) &&
                         !headerKey.equals("host", ignoreCase = true)
                     ) {
-                        println("Header " + headerKey + " = " + headerSplitValue.joinToString(" "))
-                        this.header(headerKey, headerSplitValue.joinToString(" "))
+                       // println("Header " + headerKey + " = " + headerSplitValue.joinToString(" "))
+                        if(headerKey.equals("content-type", ignoreCase = true) && headerSplitValue.joinToString(" ").contains("x-www-form-urlencoded")){
+                            //need to be removed for building the form properly
+                        }else{
+                            this.header(headerKey, headerSplitValue.joinToString(" "))
+                        }
                     }
                 }
 
-                val body = withContext(Dispatchers.IO) {
-                    val text = String(call.receiveStream().readBytes(), Charsets.UTF_8)
-                    ksoupJson.decodeFromString<PortableRequest>(text)
-                }
-
-                this.applyPortable(body)
-                if (target == "https://steamcommunity.com/actions/FileUploader") {
-                    println("I write addtional")
-                    data(
-                        "avatar",
-                        "MyAva.jpg",
-                        File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes()
-                            .inputStream()
-                    )
-                }
-                maxBodySize(1200000)
-                timeout(120_000)
-
-                println("Sending Request")
-                this.request().data().forEach {
-                    println("key " + it.key())
-                    println("v " + it.value())
-                    println("a " + it.inputStream())
-                }
+               // println("Sending Request")
+               // this.request().data().forEach {
+                    //println("key " + it.key())
+                    //println("v " + it.value())
+                   // println("a " + it.inputStream())
+                //}
             }
         }.fold(
             onSuccess = { result ->
-                println("success result")
+                //println("success result")
+                println("successfully jumped request for $target")
                 result.cookies().forEach { (k, v) ->
-                    println("Return Cookie " + k + " = " + v)
+                    //println("Return Cookie " + k + " = " + v)
                     call.response.cookies.append(
                         Cookie(k, v)
                     )
@@ -133,7 +129,7 @@ object Main {
                         !k.equals("content-type", ignoreCase = true) &&
                         !k.equals("Content-Encoding", ignoreCase = true)
                     ) {
-                        println("Return Header " + k + " = " + v)
+                        //println("Return Header " + k + " = " + v)
                         call.response.header(k, v)
                     }
                 }
@@ -152,7 +148,7 @@ object Main {
                 )
             },
             onFailure = { e ->
-                println("error result")
+               // println("error result")
                 e.printStackTrace()
                 call.respond(
                     HttpStatusCode(881, "Request error"),
