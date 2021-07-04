@@ -30,17 +30,6 @@ object Main {
         fixJava()
         val client = HttpClient()
 
-        thread {
-            Thread.sleep(3000)
-            runBlocking {
-                client.get<HttpResponse>("http://localhost:8188/request?target=https://mirai.mamoe.net") {
-
-                }.let {
-                    println(it)
-                }
-            }
-        }
-
         embeddedServer(Netty, environment = applicationEngineEnvironment {
             connector {
                 port = 8188
