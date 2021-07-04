@@ -7,6 +7,7 @@ import PortableRequest
 import applyPortable
 import io.ktor.application.*
 import io.ktor.client.*
+import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.features.cookies.*
 import io.ktor.client.request.*
@@ -250,8 +251,9 @@ object Main {
                     }
                 }
                 call.response.header(JUMPFOR_HEADER, target)
+
                 call.respond(
-                    result.content.toByteArray().toString()
+                    String(result.content.toByteArray())
 //                    object : OutgoingContent.ReadChannelContent() {
 //                        override val contentType: ContentType get() = result.contentType() ?: ContentType.Any
 //                        override val status: HttpStatusCode
