@@ -290,7 +290,6 @@ fun fixJava() {
     System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
     System.setProperty("jdk.httpclient.allowRestrictedHeaders", "connection,content-length,expect,host,upgrade")
 
-
     //proxy
     System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")
     System.setProperty("jdk.http.auth.proxying.disabledSchemes", "")

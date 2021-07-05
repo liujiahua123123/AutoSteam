@@ -12,9 +12,16 @@ import java.io.File
 import java.io.InputStream
 import java.net.SocketException
 import java.net.URL
+import java.security.SecureRandom
+import java.security.cert.CertificateException
+import java.security.cert.X509Certificate
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 import javax.xml.crypto.dsig.keyinfo.KeyValue
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
@@ -61,6 +68,14 @@ fun Connection.Request.jumpServer(ip:String, port:Short) {
 fun Connection.jumpServer(ip:String, port:Short) {
     header(JUMPSERVER_HEADER, "jumpserver://$ip:$port")
 }
+
+fun Connection.jumpServer(spec:String){
+    if(!spec.startsWith("jumpserver://")){
+        throw IllegalArgumentException("jumpserver address should start with jumpserver://")
+    }
+    header(JUMPSERVER_HEADER, spec)
+}
+
 
 
 open class Ksoup(
@@ -125,7 +140,6 @@ open class Ksoup(
                 request.url(URL(applyJumpServerAddress.replace("jumpserver://","http://")))
                 val jumpData = ksoupJson.encodeToString(request.toPortable())
 
-                println("redirect from $original to " + applyJumpServerAddress)
                 //changed to a jump server body
                 request.data().clear()
                 request.method(Connection.Method.POST)
@@ -134,7 +148,7 @@ open class Ksoup(
         }
         responseHandlers.add { resp ->
             if (resp.statusCode() == JUMPSERVER_ERROR_STATUS_CODE) {
-                throw SocketException("Jump Server Error" + resp.body())
+                throw SocketException("Jump Server Error \n" + resp.body())
             }
         }
     }
@@ -170,6 +184,40 @@ open class Ksoup(
     }
 
     companion object {
+        fun fixJava(){
+            System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
+            System.setProperty("jdk.httpclient.allowRestrictedHeaders", "connection,content-length,expect,host,upgrade")
+
+            //proxy
+            System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")
+            System.setProperty("jdk.http.auth.proxying.disabledSchemes", "")
+            //Authenticator.setDefault(ProxyAuthenticator)
+
+            //ssl
+            System.setProperty("https.protocols", "TLSv1.2")
+            System.setProperty("jdk.tls.client.protocols", "TLSv1.2")
+
+            val context: SSLContext = SSLContext.getInstance("TLS")
+            val trustManagerArray: Array<TrustManager> = arrayOf(object : X509TrustManager {
+                @Throws(CertificateException::class)
+                override fun checkClientTrusted(chain: Array<X509Certificate?>?, authType: String?) {}
+
+                @Throws(CertificateException::class)
+                override fun checkServerTrusted(chain: Array<X509Certificate?>?, authType: String?) {}
+
+                override fun getAcceptedIssuers(): Array<X509Certificate> {
+                    return arrayOf()
+                }
+            })
+            context.init(null, trustManagerArray, SecureRandom())
+            HttpsURLConnection.setDefaultSSLSocketFactory(context.socketFactory)
+            HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
+        }
+
+        init {
+            fixJava()
+        }
+
         private const val HEADER_WITH_LOG = "WITH_LOG"
 
         fun Connection.withLog(): Connection {

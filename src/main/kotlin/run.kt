@@ -54,8 +54,8 @@ suspend fun main(){
 
     client.addIntrinsic{conn ->
         conn.timeout(30000)
-        //conn.jumpServer("107.174.146.144",8188)
-        conn.jumpServer("127.0.0.1",8188)
+        conn.jumpServer("107.174.146.144",8188)
+        //conn.jumpServer("127.0.0.1",8188)
         //conn.proxy("107.174.146.144",3128)
     }
 
@@ -72,7 +72,7 @@ suspend fun main(){
         accounts.remove(next)
         accounts.add(next.copy(profiled = true))
 
-        //file.writeText(SteamJson.encodeToString(accounts))
+        file.writeText(SteamJson.encodeToString(accounts))
         println("finish handle: $next")
         client.cookies.clear()
         delay(Duration.ofMillis(10000))
@@ -267,40 +267,6 @@ suspend fun registerSimple(sessionID:String, email:String){
         }
     }
 }
-
-fun fixJava(){
-    //headers: referer
-    System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
-
-
-    //proxy
-    System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")
-    System.setProperty("jdk.http.auth.proxying.disabledSchemes", "")
-    //Authenticator.setDefault(ProxyAuthenticator)
-
-    //ssl
-    System.setProperty("https.protocols", "TLSv1.2")
-    System.setProperty("jdk.tls.client.protocols", "TLSv1.2")
-
-    val context: SSLContext = SSLContext.getInstance("TLS")
-    val trustManagerArray: Array<TrustManager> = arrayOf(object : X509TrustManager {
-        @Throws(CertificateException::class)
-        override fun checkClientTrusted(chain: Array<X509Certificate?>?, authType: String?) {
-        }
-
-        @Throws(CertificateException::class)
-        override fun checkServerTrusted(chain: Array<X509Certificate?>?, authType: String?) {
-        }
-
-        override fun getAcceptedIssuers(): Array<X509Certificate> {
-            return arrayOf()
-        }
-    })
-    context.init(null, trustManagerArray, SecureRandom())
-    HttpsURLConnection.setDefaultSSLSocketFactory(context.socketFactory)
-    HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
-}
-
 
 suspend fun test(){
     /*
