@@ -2,3 +2,4 @@ rootProject.name = 'AutoSteam'
 
 include(":jumpserver")
 include(":ksoup")
+include(":jumpserver-central")

@@ -29,6 +29,7 @@ val client = SteamStoreClient().apply {
     referer = "https://store.steampowered.com/join/"
     addIntrinsic{
         println("[NETWORK] -> Connect " + it.request().url())
+        it.timeout(4000)
     }
     addResponseHandler{
         println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
@@ -49,7 +50,7 @@ val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
     }
 }
 suspend fun main(){
-    fixJava()
+    //fixJava()
 
 
     client.addIntrinsic{conn ->
