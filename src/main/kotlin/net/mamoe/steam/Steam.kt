@@ -194,7 +194,8 @@ data class LoginResponse(
     val emailauth_needed: Boolean = false,
     val login_complete: Boolean = false,
     val transfer_urls: List<String> = emptyList(),
-    val transfer_parameters: Map<String,String> = emptyMap()
+    val transfer_parameters: Map<String,String> = emptyMap(),
+    val agreement_session_url:String? = null//For CN Only
 )
 
 

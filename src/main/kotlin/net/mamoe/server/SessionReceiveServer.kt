@@ -1,8 +1,10 @@
 package net.mamoe.server
 
+import cnAuthSimple
 import io.ktor.application.*
 import io.ktor.features.*
 import io.ktor.http.*
+import io.ktor.http.HttpStatusCode.Companion.OK
 import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
@@ -31,6 +33,19 @@ object SessionReceiveServer {
             install(CallLogging) {
                 level = Level.INFO
             }
+            install(CORS) {
+                // Access-Control-Allow-Origin
+                anyHost()
+                method(HttpMethod.Get)
+                method(HttpMethod.Put)
+                method(HttpMethod.Post)
+                method(HttpMethod.Delete)
+                method(HttpMethod.Patch)
+                allowSameOrigin = true
+                for (header in "X-Requested-With,userToken,Content-type,Accept,Version,Timestamp,Platform,Sign".split(',')) {
+                    header(header)
+                }
+            }
         }
         module {
             routing {
@@ -44,6 +59,13 @@ object SessionReceiveServer {
                 }
                 get("/email"){
                     call.respond(MailService.DEFAULT.nextMailAddress())
+                }
+                get("/cn"){
+                    val capTicket = call.parameters.getOrFail("capTicket")
+                    val sucCode = call.parameters.getOrFail("secCode")
+                    GlobalScope.launch {
+                        cnAuthSimple(capTicket,sucCode)
+                    }
                 }
             }
         }

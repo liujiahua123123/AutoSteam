@@ -1,12 +1,17 @@
 
 import io.ktor.http.*
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import net.mamoe.*
 import net.mamoe.email.MailService
 import net.mamoe.server.SessionReceiveServer
+import net.mamoe.sms.Code
+import net.mamoe.sms.Phone
+import net.mamoe.sms.SMSService
 import net.mamoe.steam.*
 import org.jsoup.Connection
 import org.jsoup.Jsoup
@@ -41,6 +46,40 @@ val client = SteamStoreClient().apply {
     }
 }
 
+val cnclient = MockChromeClient().apply {
+    addIntrinsic{
+        println("[NETWORK] -> Connect " + it.request().url())
+        it.header("Origin","https://store.steamchina.com")
+        it.header("Referer","https://store.steamchina.com/login/?redir=&redir_ssl=1&snr=1_4_4__global-header")
+        it.timeout(5000)
+    }
+    addResponseHandler{
+        println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
+        if(it.body().contains("<!DOCTYPE html>")){
+            println("[NETWORK] <- Receive HTML")
+        }else {
+            println("[NETWORK] <- Receive " + it.body())
+        }
+    }
+}
+
+val rnrClient = MockChromeClient().apply {
+    addIntrinsic{
+        println("[NETWORK] -> Connect " + it.request().url())
+        it.header("Origin","http://rnr.steamchina.com")
+        it.header("Referer","https://rnr.steamchina.com/register.html")
+        it.timeout(5000)
+    }
+    addResponseHandler{
+        println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
+        if(it.body().contains("<!DOCTYPE html>")){
+            println("[NETWORK] <- Receive HTML")
+        }else {
+            println("[NETWORK] <- Receive " + it.body())
+        }
+    }
+}
+
 val regDispatcher = Executors.newFixedThreadPool(3).asCoroutineDispatcher()
 
 val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
@@ -52,7 +91,7 @@ val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
 suspend fun main(){
     //fixJava()
 
-
+    /*
     client.addIntrinsic{conn ->
         conn.timeout(30000)
         conn.jumpServer("107.174.146.144",8188)
@@ -78,6 +117,9 @@ suspend fun main(){
         client.cookies.clear()
         delay(Duration.ofMillis(10000))
     }
+
+     */
+    SessionReceiveServer.start(true)
 }
 
 
@@ -181,6 +223,105 @@ suspend fun doProfile(username:String, password:String){
     }
     println("Request join")
 }
+
+suspend fun cnAuthSimple(capticket:String,secCode:String){
+
+    val phone = SMSService.DEFAULT.getPhone()
+
+    println(rnrClient.get("https://rnr.steamchina.com/securityCode"){
+        data("mobilePhone",phone.number)
+        data("graphCode", "[]")
+        data("capTicket",capticket)
+        data("secCode",secCode)
+        data("reason","1")
+    }.body())
+
+    val code = phone.waitCode()
+    println(code.code)
+
+
+    val username = "mayizhe1989"
+    val password = "KIManti15685a"
+
+
+    val d = cnclient.post("https://store.steamchina.com/login/getrsakey/"){
+        data(GetRsaKeyRequest(
+            username = username
+        ))
+    }.decode<GetRsaKeyResponse>()
+
+    val ps = steamPasswordRSA(d.publickey_mod,d.publickey_exp,password)
+    println(ps)
+
+    val r = cnclient.post("https://store.steamchina.com/login/dologin/"){
+        data(LoginRequest(
+            username = username,
+            password = ps,
+            rsatimestamp = d.timestamp,
+        ))
+    }.decode<LoginResponse>()
+
+    if(r.agreement_session_url==null){
+        error("no need to CN anth")
+    }
+    val agreementToken = r.agreement_session_url.substringAfter("token=").trim()
+
+
+    delay(Duration.ofMillis(3000L))
+
+
+    cnclient.get(r.agreement_session_url)
+    delay(Duration.ofMillis(3000L))
+
+    cnclient.get("https://store.steamchina.com/agreements/startidverification?token=$agreementToken&redir=https://store.steamchina.com/login/?agreementsource=2")
+    delay(Duration.ofMillis(3000L))
+
+    rnrClient.get("https://rnr.steamchina.com/register.html?token=$agreementToken&newUser=false")
+    println("Token = $agreementToken")
+
+   val resp = rnrClient.post("https://rnr.steamchina.com/register?token=$agreementToken"){
+        header("Content-Type", "application/json")
+        this.requestBody(SteamJson.encodeToString(CNRegisterRequest(
+            mobilePhone = phone.number,
+            realName = "赵祥",
+            residentId = "342601199011274630",
+            securityCode = code.code!!
+        )))
+    }.decode<CNRegisterResponse>()
+
+    println(resp)
+
+    delay(Duration.ofMillis(700))
+    val finalStep = cnclient.post("https://store.steamchina.com/agreements/ajaxcompleteagreement"){
+        data("token",agreementToken)
+    }.body()
+    println(finalStep)
+
+    delay(Duration.ofMillis(300))
+    val x = cnclient.get("https://store.steamchina.com/login/?agreementsource=2"){
+        header("referer","https://store.steamchina.com/agreements/startidverification?token=$agreementToken&redir=https://store.steamchina.com/login/?agreementsource=2")
+    }
+    println(x.statusMessage())
+    println(x.statusCode())
+
+    val d1 = cnclient.post("https://store.steamchina.com/login/getrsakey/"){
+        data(GetRsaKeyRequest(
+            username = username
+        ))
+    }.decode<GetRsaKeyResponse>()
+
+
+    val r1 = cnclient.post("https://store.steamchina.com/login/dologin/"){
+        data(LoginRequest(
+            username = username,
+            password = ps,
+            rsatimestamp = d.timestamp,
+        ))
+    }.decode<LoginResponse>()
+
+
+}
+
 
 suspend fun registerSimple(sessionID:String, email:String){
     withContext(regDispatcher) {
