@@ -15,6 +15,7 @@ setTimeout(function () {
     console.log("Hooked XML prototype send")
 },10);
 
+
 setTimeout(function () {
     document.__HOOK__send = XMLHttpRequest.prototype.send
     Object.defineProperty(XMLHttpRequest.prototype, "send", {
