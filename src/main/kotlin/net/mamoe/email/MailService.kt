@@ -19,7 +19,11 @@ interface MailService {
 }
 
 
+
+
 object MyMailServer: MailService{
+
+    suspend fun randomId():Identity = client.get("$BASE/identity?country=CN").decode<Identity>()
 
     @Serializable
     data class StorableEmail(

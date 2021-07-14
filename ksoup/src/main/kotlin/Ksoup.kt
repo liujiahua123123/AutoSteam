@@ -9,6 +9,7 @@ import org.jsoup.Connection
 import org.jsoup.Jsoup
 import org.jsoup.helper.HttpConnection
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.net.SocketException
 import java.net.URL
@@ -18,6 +19,7 @@ import java.security.cert.X509Certificate
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
@@ -47,6 +49,20 @@ inline fun <reified T : Any> T.serialize(format: StringFormat, serializer: KSeri
 inline fun <reified T:Any> Connection.Response.decode():T{
     return body().deserialize()
 }
+
+
+/**
+ * networkRetry
+ */
+const val NETWORK_RETRY_HEADER = "_ksoup_network_retry"
+fun Connection.Request.networkRetry(times: Int){
+    header(NETWORK_RETRY_HEADER,"" + times)
+}
+
+fun Connection.networkRetry(times: Int){
+    header(NETWORK_RETRY_HEADER,"" + times)
+}
+
 
 /**
  * HTTP协议的扩充 - Him188JumpServer
@@ -248,7 +264,27 @@ open class Ksoup(
 
         val resp: Connection.Response = suspendCancellableCoroutine { cont ->
             val future = pool.submit {
-                cont.resumeWith(kotlin.runCatching { connection.execute() })
+                cont.resumeWith(kotlin.runCatching {
+                    var response: Connection.Response?
+
+                    var maxRetry = connection.request().header(NETWORK_RETRY_HEADER)?.toInt()?:1
+
+                    while (true) {
+                        try {
+                            response = connection.execute()
+                            break
+                        }catch (e: Exception){
+                            if(e is SocketException || e is TimeoutException || e is IOException) {
+                                if (--maxRetry <= 0) {
+                                    throw e
+                                }
+                                continue
+                            }
+                            throw e
+                        }
+                    }
+                    response!!
+                })
             }
             cont.invokeOnCancellation {
                 kotlin.runCatching {

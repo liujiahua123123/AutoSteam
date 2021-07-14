@@ -43,7 +43,6 @@ import javax.net.ssl.X509TrustManager
 object Main {
     @JvmStatic
     fun main(args: Array<String>) {
-        fixJava()
 
         embeddedServer(Netty, environment = applicationEngineEnvironment {
             connector {
@@ -283,37 +282,4 @@ object Main {
             }
         )
     }
-}
-
-fun fixJava() {
-    //headers: referer
-    System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
-    System.setProperty("jdk.httpclient.allowRestrictedHeaders", "connection,content-length,expect,host,upgrade")
-
-    //proxy
-    System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "")
-    System.setProperty("jdk.http.auth.proxying.disabledSchemes", "")
-    //Authenticator.setDefault(ProxyAuthenticator)
-
-    //ssl
-    System.setProperty("https.protocols", "TLSv1.2")
-    System.setProperty("jdk.tls.client.protocols", "TLSv1.2")
-
-    val context: SSLContext = SSLContext.getInstance("TLS")
-    val trustManagerArray: Array<TrustManager> = arrayOf(object : X509TrustManager {
-        @Throws(CertificateException::class)
-        override fun checkClientTrusted(chain: Array<X509Certificate?>?, authType: String?) {
-        }
-
-        @Throws(CertificateException::class)
-        override fun checkServerTrusted(chain: Array<X509Certificate?>?, authType: String?) {
-        }
-
-        override fun getAcceptedIssuers(): Array<X509Certificate> {
-            return arrayOf()
-        }
-    })
-    context.init(null, trustManagerArray, SecureRandom())
-    HttpsURLConnection.setDefaultSSLSocketFactory(context.socketFactory)
-    HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
 }

@@ -3,7 +3,7 @@ setTimeout(function () {
     Object.defineProperty(XMLHttpRequest.prototype, "send", {
         "value": function () {
             var data = arguments[0];
-            if(data.indexOf("creationid") !== -1){
+            if(data.indexOf("email") !== -1){
                 console.log("Catched creation sesssionID (creationID)")
                 console.log(data)
             }else{

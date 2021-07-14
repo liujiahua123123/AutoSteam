@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import net.mamoe.*
 import net.mamoe.email.MailService
+import net.mamoe.email.MyMailServer
 import net.mamoe.server.SessionReceiveServer
 import net.mamoe.sms.Code
 import net.mamoe.sms.Phone
@@ -18,15 +19,13 @@ import org.jsoup.Jsoup
 import java.io.File
 import java.net.Proxy
 import java.net.URL
+import java.net.URLDecoder
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.concurrent.Executors
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
+import javax.net.ssl.*
 import kotlin.random.Random
 import kotlin.system.exitProcess
 
@@ -119,6 +118,10 @@ suspend fun main(){
     }
 
      */
+    client.get("https://google.com"){
+        networkRetry(5)
+    }
+
     SessionReceiveServer.start(true)
 }
 
@@ -240,8 +243,8 @@ suspend fun cnAuthSimple(capticket:String,secCode:String){
     println(code.code)
 
 
-    val username = "mayizhe1989"
-    val password = "KIManti15685a"
+    val username = "taotao4310"
+    val password = "KIManti11218a"
 
 
     val d = cnclient.post("https://store.steamchina.com/login/getrsakey/"){
@@ -279,12 +282,16 @@ suspend fun cnAuthSimple(capticket:String,secCode:String){
     rnrClient.get("https://rnr.steamchina.com/register.html?token=$agreementToken&newUser=false")
     println("Token = $agreementToken")
 
+
+    val id = MyMailServer.randomId()
+
+
    val resp = rnrClient.post("https://rnr.steamchina.com/register?token=$agreementToken"){
         header("Content-Type", "application/json")
         this.requestBody(SteamJson.encodeToString(CNRegisterRequest(
             mobilePhone = phone.number,
-            realName = "赵祥",
-            residentId = "342601199011274630",
+            realName = id.name,
+            residentId = id.credentialsValue,
             securityCode = code.code!!
         )))
     }.decode<CNRegisterResponse>()
@@ -408,6 +415,8 @@ suspend fun registerSimple(sessionID:String, email:String){
             error("Error in registration")
         }
     }
+
+
 }
 
 suspend fun test(){
