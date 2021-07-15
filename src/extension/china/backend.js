@@ -25,7 +25,6 @@ chrome.webRequest.onBeforeRequest.addListener(
 
         return {cancel: true};
 
-
        // return {redirectUrl: "data:application/json;charset=UTF-8;base64," +  "eyJjb2RlIjowLCJkZXNjcmlwdGlvbiI6IlN1Y2Nlc3MiLCJyZXN1bHQiOnsiY2FwVGlja2V0IjoiRkFLRU1FIn19"};
     },
     {urls:  ["<all_urls>"]},

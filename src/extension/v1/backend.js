@@ -22,10 +22,28 @@ chrome.runtime.onMessage.addListener(
                 }
             }
         } else if (request.address) {
+            console.log("submit received: " + request.session)
+            let submit = new XMLHttpRequest();
+            submit.open("GET", host + "/newJoinSession/v1?address=" + request.address + "&session=" + request.session, true);
+            submit.send("")
+            submit.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    console.log("Sent to backend complete!")
+                }
+            }
+
+
             let xhr = new XMLHttpRequest();
-            xhr.open("GET", host + "/new?address=" + request.address + "&session=" + request.session, false);
+            xhr.open("GET", host + "/email", true);
             xhr.send("")
-            chrome.tabs.sendMessage(tabId, {refresh: "OK"})
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    let nextMail = xhr.responseText
+                    console.log("next mail is " + nextMail)
+                    chrome.tabs.sendMessage(tabId, {email: nextMail})
+                    chrome.tabs.sendMessage(tabId, {refresh: "OK"})
+                }
+            }
         } else {
             console.log(request);
         }

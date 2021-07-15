@@ -28,6 +28,7 @@ import javax.xml.crypto.dsig.keyinfo.KeyValue
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.math.max
 
 
 val ksoupJson = Json {
@@ -156,6 +157,7 @@ open class Ksoup(
                 request.url(URL(applyJumpServerAddress.replace("jumpserver://","http://")))
                 val jumpData = ksoupJson.encodeToString(request.toPortable())
 
+                println("JumpTo=>$applyJumpServerAddress")
                 //changed to a jump server body
                 request.data().clear()
                 request.method(Connection.Method.POST)

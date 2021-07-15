@@ -17,12 +17,10 @@
             document.getElementById("email").value = email
             document.getElementById("reenter_email").value = email
             document.getElementById("i_agree_check").checked = true
-            document.getElementById("createAccountButton").disabled = false
-            document.getElementById("createAccountButton").innerText = "已完成验证码但未自动刷新"
-            document.getElementById("account_form_box").getElementsByClassName("section_title")[0].innerText = "Waiting For Game"
         }
 
         if (request.refresh) {
+            /*
             let url = request.refresh;
             if (window.location.href !== url) {
                 setTimeout(function () {
@@ -40,12 +38,22 @@
                 }
                 window.location.reload()
             }
+
+             */
+            let ev = new CustomEvent('RefreshCaptchaEvent', {
+                detail: {
+                    data: {}
+                }
+            })
+
+            document.dispatchEvent(ev)
         }
 
     })
 
     document.addEventListener('SessionSubmitEvent', function (ev) {
         chrome.runtime.sendMessage(ev.detail.data)
+        document.getElementById("account_form_box").getElementsByClassName("section_title")[0].innerText = "正在刷新..."
     })
 
     if(window.location.href.indexOf("join")!==-1) {

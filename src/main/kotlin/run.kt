@@ -17,9 +17,7 @@ import net.mamoe.steam.*
 import org.jsoup.Connection
 import org.jsoup.Jsoup
 import java.io.File
-import java.net.Proxy
-import java.net.URL
-import java.net.URLDecoder
+import java.net.*
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -33,7 +31,7 @@ val client = SteamStoreClient().apply {
     referer = "https://store.steampowered.com/join/"
     addIntrinsic{
         println("[NETWORK] -> Connect " + it.request().url())
-        it.timeout(4000)
+        it.timeout(10000)
     }
     addResponseHandler{
         println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
@@ -90,13 +88,16 @@ val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
 suspend fun main(){
     //fixJava()
 
-    /*
+
     client.addIntrinsic{conn ->
         conn.timeout(30000)
-        conn.jumpServer("107.174.146.144",8188)
+        //conn.jumpServer("107.174.146.144",8188)
         //conn.jumpServer("127.0.0.1",8188)
         //conn.proxy("107.174.146.144",3128)
+        conn.jumpServer("jumpserver://172.245.156.111:8188")
+        conn.networkRetry(8)
     }
+
 
     while (true) {
         val accounts = file.readText().deserialize<MutableList<Account>>()
@@ -117,12 +118,9 @@ suspend fun main(){
         delay(Duration.ofMillis(10000))
     }
 
-     */
-    client.get("https://google.com"){
-        networkRetry(5)
-    }
 
-    SessionReceiveServer.start(true)
+
+    //SessionReceiveServer.start()
 }
 
 
@@ -330,7 +328,8 @@ suspend fun cnAuthSimple(capticket:String,secCode:String){
 }
 
 
-suspend fun registerSimple(sessionID:String, email:String){
+suspend fun registerSimple(email:String, sessionID:String){
+
     withContext(regDispatcher) {
         client.ajaxCounter.addAndGet(2)//for default
 

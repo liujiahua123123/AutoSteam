@@ -1,5 +1,6 @@
 package net.mamoe.server
 
+import client
 import cnAuthSimple
 import io.ktor.application.*
 import io.ktor.features.*
@@ -49,13 +50,13 @@ object SessionReceiveServer {
         }
         module {
             routing {
-               get("/new"){
-                   val address = call.parameters.getOrFail("address")
-                   val session = call.parameters.getOrFail("session")
+               get("newJoinSession/v1"){
+                   val add = call.parameters.getOrFail("address")
+                   val sessionid = call.parameters.getOrFail("session")
                     GlobalScope.launch {
-                        registerSimple(session,address)
+                        registerSimple(add,sessionid)
                     }
-                    call.respond("Ok")
+                    call.respond("OK")
                 }
                 get("/email"){
                     call.respond(MailService.DEFAULT.nextMailAddress())
