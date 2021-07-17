@@ -149,7 +149,6 @@ suspend fun main(){
 suspend fun doProfile(username:String, password:String){
     //SessionReceiveServer.start(true)
 
-
     val d = client.post("https://store.steampowered.com/login/getrsakey/"){
         data(GetRsaKeyRequest(
             username = username
@@ -345,97 +344,6 @@ suspend fun cnAuthSimple(capticket:String,secCode:String){
             rsatimestamp = d.timestamp,
         ))
     }.decode<LoginResponse>()
-
-
-}
-
-
-suspend fun registerSimple(email:String, sessionID:String){
-
-    withContext(regDispatcher) {
-        client.ajaxCounter.addAndGet(2)//for default
-
-        client.get(MailService.DEFAULT.verifyRegister(email).apply {
-            println("Mail Verify Link: $this")
-        })
-        println("Mail Verified")
-
-        while (true) {
-            val emailResponse = client.ajax("https://store.steampowered.com/join/ajaxcheckemailverified") {
-                data(
-                    AjaxEmailVerifiedRequest(
-                        creationid = sessionID
-                    )
-                )
-            }.decode<AjaxEmailVerifiedResponse>()
-
-            when (emailResponse.status()) {
-                AjaxEmailVerifiedResponse.Companion.Status.SUCCESS -> {
-                    println("Email Verified")
-                    break
-                }
-                AjaxEmailVerifiedResponse.Companion.Status.WAITING -> {
-                    println("Waiting")
-                    delay(Duration.ofMillis(3000))
-                    continue
-                }
-                else -> {
-                    error("Error in email verification, probably a domain ban")
-                }
-            }
-        }
-
-
-        println("Password = KIM32132123")
-        var accountName = email.substringBefore("@")
-
-        while (true) {
-            val res = client.ajax("https://store.steampowered.com/join/checkavail/") {
-                data(
-                    CheckUsernameRequest(
-                        accountName
-                    )
-                )
-            }.decode<CheckUsernameResponse>()
-            if (!res.bAvailable) {
-                if(res.rgSuggestions.isEmpty()) {
-                    accountName += Random.nextInt(0, 9)
-                }else{
-                    accountName = res.rgSuggestions[0]
-                }
-                delay(Duration.ofMillis(500))
-                continue
-            }
-            break;
-        }
-
-        var password = "KIManti" + Random.Default.nextInt(10000,99999) + "a"
-
-        val response = client.ajax("https://store.steampowered.com/join/createaccount") {
-            data(
-                CreateAccountRequest(
-                    accountName,
-                    password,
-                    creation_sessionid = sessionID
-                )
-            )
-            data()
-        }.decode<CreateAccountResponse>()
-
-
-        if(response.bSuccess) {
-            println("Register Complete, account saved")
-            println("$accountName:$password")
-            val list = file.readText().deserialize<MutableList<Account>>()
-            list.add(
-                Account(
-                accountName,password,email,false,false
-            ))
-            file.writeText(SteamJson.encodeToString(list))
-        }else{
-            error("Error in registration")
-        }
-    }
 
 
 }

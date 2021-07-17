@@ -198,6 +198,14 @@ data class LoginResponse(
     val agreement_session_url:String? = null//For CN Only
 )
 
+/**
+ * https://store.steampowered.com/twofactor/manage_action
+ */
+data class ManageActionRequest(
+    val action: String,
+    val sessionid: String
+):FormData
+
 
 /**
  * https://steamcommunity.com/profiles/{steamid}/edit/

@@ -21,7 +21,6 @@ import net.mamoe.step.*
 import networkRetry
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
-import registerSimple
 
 object SessionReceiveServer {
 
