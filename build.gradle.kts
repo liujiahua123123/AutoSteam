@@ -48,6 +48,7 @@ dependencies {
     api("org.jsoup:jsoup:1.13.1")
 
     api(project(":ksoup"))
+    api(project(":accountsjar"))
 
     implementation("com.belerweb:pinyin4j:2.5.1")
 }

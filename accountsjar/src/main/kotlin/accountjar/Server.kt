@@ -121,6 +121,7 @@ fun start(){
 
                     val data = call.receivePostData<SteamAccount>()
                     Jar.pushAccount(data)
+                    call.templateResponse("", true, "OK")
                     countCache.clear()
                 }
 

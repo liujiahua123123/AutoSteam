@@ -84,7 +84,6 @@ inline fun <reified T:Any> Connection.Response.decode():T{
  *
  */
 
-
 /**
  * Steam特制的Client, 增加了steam独有的ajax参数
  */
@@ -116,7 +115,7 @@ open class SteamClient: MockChromeClient(){
  */
 open class SteamStoreClient: SteamClient(){
 
-    var referer = "https://store.steampowered.com"
+    override var referer = "https://store.steampowered.com"
 
     init {
         addIntrinsic{

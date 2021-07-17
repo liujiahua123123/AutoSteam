@@ -323,11 +323,12 @@ open class MockChromeClient : Ksoup() {
 
     open val userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
 
+    open var referer:String = ""
+
     init {
         addResponseHandler{
             val uri:String = if(it.header(JUMPFOR_HEADER)!=null) {
                 val dis = it.header(JUMPFOR_HEADER)
-                println(dis)
                 URL(dis).host
             }else{
                 it.url().host
@@ -343,6 +344,10 @@ open class MockChromeClient : Ksoup() {
             it.header("Sec-Fetch-Dest","empty")
             it.header("Sec-Fetch-Mode","cors")
             it.header("Sec-Fetch-Site","same-origin")
+            if(referer != ""){
+                it.header("Referer",referer)
+            }
+            it.header("Origin",it.request().url().protocol + "://" + it.request().url().host)
         }
     }
 }
