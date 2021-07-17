@@ -68,7 +68,7 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
             debug(" ->    Send " + it.request().requestBody())
         }
         client.addResponseHandler{
-            debug("[MAIL] <-  Status " + it.statusCode() + " " + it.statusMessage())
+            debug(" <-  Status " + it.statusCode() + " " + it.statusMessage())
         }
     }
 
@@ -107,6 +107,7 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
                         continue
                     }
                 }
+                throw e;
             }
         }
     }
@@ -121,7 +122,9 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
                 worker.log(Colors.ANSI_BRIGHT_GREEN + "Complete ${it.name} (" + (currentTimeMillis() - startTime) + "ms)" + Colors.ANSI_RESET)
             }catch (e:Exception){
                 worker.log(Colors.ANSI_BRIGHT_RED + "Terminated ${it.name}"+ Colors.ANSI_RESET)
-                val logFile = File(System.getProperty("user.dir") + "/log/" + Random.nextInt(99999) + ".log")
+                val logFile = File(System.getProperty("user.dir") + "/logs/" + Random.nextInt(99999) + ".log").apply {
+                    createNewFile()
+                }
                 worker.log(Colors.ANSI_BRIGHT_RED + "Saving Logs to ${logFile.path}"+ Colors.ANSI_RESET)
                 logFile.writeText(worker.flushLogs())
                 logFile.appendText("\n\n\n Exception: ")

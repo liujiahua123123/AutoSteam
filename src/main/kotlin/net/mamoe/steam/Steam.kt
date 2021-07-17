@@ -277,5 +277,17 @@ data class JoinGroupRequest(
 //302 response -> HTML
 
 
+/**
+ * https://steamcommunity.com/profiles/76561199190833821/ajaxsetprivacy/
+ */
 
+data class SetPrivacyRequest(
+    val sessionid:String,
+    val Privacy:String,
+    val eCommentPermission:Int
+):FormData
 
+@Serializable
+data class SetPrivacyResponse(
+    val success:Int
+)

@@ -1,4 +1,5 @@
 
+import accountjar.RemoteJar
 import io.ktor.http.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -14,7 +15,7 @@ import net.mamoe.sms.Code
 import net.mamoe.sms.Phone
 import net.mamoe.sms.SMSService
 import net.mamoe.steam.*
-import net.mamoe.step.ProxyProvider
+import net.mamoe.step.*
 import org.jsoup.Connection
 import org.jsoup.Jsoup
 import java.io.File
@@ -142,108 +143,19 @@ suspend fun main(){
 
      */
 
-    SessionReceiveServer.start()
-}
+   // SessionReceiveServer.start()
 
+    val account = RemoteJar.popAccount(Profile.NO_PROFILE)
 
-suspend fun doProfile(username:String, password:String){
-    //SessionReceiveServer.start(true)
-
-    val d = client.post("https://store.steampowered.com/login/getrsakey/"){
-        data(GetRsaKeyRequest(
-            username = username
-        ))
-    }.decode<GetRsaKeyResponse>()
-
-    val ps = steamPasswordRSA(d.publickey_mod,d.publickey_exp,password)
-    println(ps)
-
-    val r = client.post("https://store.steampowered.com/login/dologin/"){
-        data(LoginRequest(
-            username = username,
-            password = ps,
-            rsatimestamp = d.timestamp,
-        ))
-    }.decode<LoginResponse>()
-
-    if(!r.login_complete){
-        println(r)
-        error("Failed to complete login")
-    }
-
-    val steamId = r.transfer_parameters.map { it }.firstOrNull { it.key == "steamid" }?.value
-        ?: error("Failed to retrieve steamid from transfer parms")
-
-    println("Login Complete, steamID=$steamId start doing transfers")
-
-    r.transfer_urls.forEach {
-        val host =  it.substringAfter("https://").substringBefore("/")
-        val referer = "https://store.steampowered.com/"
-        client.post(it){
-            data(r.transfer_parameters)
-            header("host",host)
-            header("referer",referer)
-            timeout(120_000)
-        }
-        println("Redirecting Login to $it")
-    }
-
-    println("Showing Login Success cookies: ")
-    client.cookies.forEach { (t, u) ->
-        println("Cookies for $t")
-        u.forEach { (t, u) ->
-            println("$t => $u")
+    val worker = WorkerImpl("W " + account.id)
+    val client = MockChromeClient().apply {
+        addIntrinsic{
+            it.networkRetry(8)
         }
     }
-    println("=======")
 
-    client.get("https://steamcommunity.com/profiles/$steamId/edit/info")
-
-    //at this point, expect the sessionId is ready
-    val communitySessionId = client.cookies["steamcommunity.com"]?.get("sessionid")?: error("Failed to find sessionId for steam community")
-
-    println("Community Session Id:$communitySessionId")
-
-
-    val editResponse = client.post("https://steamcommunity.com/profiles/$steamId/edit/"){
-        data(EditProfileRequest(
-            sessionID = communitySessionId,
-            personaName = "上海黑手维克托",
-            summary = "上海黑手维克托老师专用账号"
-        ))
-    }.decode<EditProfileResponse>()
-
-    if(editResponse.success == 1){
-        println("edit profile success")
-    }
-
-    val upload = client.post("https://steamcommunity.com/actions/FileUploader"){
-        data(UploadAvatarRequest(
-            sessionid = communitySessionId,
-            sId = steamId
-        ))
-        data("avatar","MyAva.jpg",File(System.getProperty("user.dir") + "/BlackHandVector.jpg").readBytes().inputStream())
-        maxBodySize(1024*10)
-        timeout(120000)
-
-        val p = request().toPortable()
-        this.request().data().clear()
-        this.applyPortable(p)
-
-
-    }.decode<UploadAvatarResponse>()
-    if(upload.success){
-        println("successfully changed avatar")
-    }else{
-        error("IP BANNED for upload")
-    }
-
-    client.post("https://steamcommunity.com/groups/Anti-Player-RE"){
-        data(JoinGroupRequest(
-            sessionID = communitySessionId
-        ))
-    }
-    println("Request join")
+    val executor = StepExecutor(worker,account.toComponent(),client,JumpServerProxyProvider)
+    executor.executeSteps(Login,SetPrivacy,SetProfile,SetAvatar,StoreAccount)
 }
 
 suspend fun cnAuthSimple(capticket:String,secCode:String){
@@ -344,8 +256,6 @@ suspend fun cnAuthSimple(capticket:String,secCode:String){
             rsatimestamp = d.timestamp,
         ))
     }.decode<LoginResponse>()
-
-
 }
 
 suspend fun test(){
