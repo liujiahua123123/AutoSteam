@@ -2,6 +2,7 @@
 @file:OptIn(ExperimentalContracts::class)
 
 import io.ktor.http.*
+import io.ktor.util.*
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
@@ -47,6 +48,7 @@ inline fun <reified T : Any> T.serialize(format: StringFormat, serializer: KSeri
 }
 
 
+@OptIn(InternalAPI::class)
 inline fun <reified T:Any> Connection.Response.decode():T{
     return body().deserialize()
 }
@@ -151,13 +153,12 @@ open class Ksoup(
             if(applyJumpServerAddress != null && applyJumpServerAddress.isNotEmpty()){
                 val original = conn.request().url().toString()
                 val request = conn.request()
-                conn.header(JUMPSERVER_HEADER,original)
+                conn.header(JUMPSERVER_HEADER,original.jumpServerHeaderEncode())
 
                 //redirect to jump server
                 request.url(URL(applyJumpServerAddress.replace("jumpserver://","http://")))
-                val jumpData = ksoupJson.encodeToString(request.toPortable())
+                val jumpData = request.toPortable().encode()
 
-                println("JumpTo=>$applyJumpServerAddress")
                 //changed to a jump server body
                 request.data().clear()
                 request.method(Connection.Method.POST)
@@ -398,4 +399,25 @@ fun Connection.applyPortable(portableRequest: PortableRequest){
             this.data(it.key, it.value)
         }
     }
+}
+
+
+@OptIn(InternalAPI::class)
+fun String.jumpServerHeaderEncode():String{
+    return this.encodeBase64().encodeBase64()
+}
+
+@OptIn(InternalAPI::class)
+fun String.jumpServerHeaderDecode():String{
+    return this.decodeBase64String().decodeBase64String()
+}
+
+@OptIn(InternalAPI::class)
+fun PortableRequest.encode():String{
+    return ksoupJson.encodeToString(this)
+}
+
+@OptIn(InternalAPI::class)
+fun String.decodePortableRequest():PortableRequest{
+    return ksoupJson.decodeFromString(this)
 }

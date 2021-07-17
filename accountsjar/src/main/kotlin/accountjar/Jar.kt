@@ -1,3 +1,6 @@
+import accountjar.start
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
@@ -14,6 +17,9 @@ import java.sql.Connection
 enum class Profile{
     NO_PROFILE,
     VECTOR_PROFILE,
+    CHENRUI_PROFILE,
+    YELLOW_PROFILE,
+    SETU_PROFILE,
 }
 
 @Serializable
@@ -65,6 +71,7 @@ object Jar{
         createNewFile()
     }
 
+    val popLock = Mutex()
 
     init {
         Database.connect("jdbc:sqlite:" + file.path, driver = "org.sqlite.JDBC")
@@ -91,14 +98,20 @@ object Jar{
         return open { DBAccount.count(Op.build(op))}
     }
 
-    fun deleteAccounts(op: SqlExpressionBuilder.() -> Op<Boolean>, limit:Int? = null){
-        return open { DBAccounts.deleteWhere(limit,null,op) }
+    suspend fun deleteAccounts(op: SqlExpressionBuilder.() -> Op<Boolean>, limit:Int? = null){
+        return popLock.withLock {
+            open { DBAccounts.deleteWhere(limit,null,op) }
+        }
     }
 
-    fun popAccount(op: SqlExpressionBuilder.() -> Op<Boolean>):SteamAccount?{
-        return open { DBAccount.find(op).firstOrNull()?.apply {
-            delete()
-        }?.toAccount()}
+    suspend fun popAccount(op: SqlExpressionBuilder.() -> Op<Boolean>):SteamAccount?{
+        return  popLock.withLock {
+            open {
+                DBAccount.find(op).firstOrNull()?.apply {
+                    delete()
+                }?.toAccount()
+            }
+        }
     }
 
 
@@ -114,35 +127,15 @@ object Jar{
         account.id = dba.id.value
     }
 
-    fun pushAccount(account:SteamAccount){
+    suspend fun pushAccount(account:SteamAccount){
         open {
             pushAccount0(account)
         }
     }
 
-    fun pushAccounts(accounts: Collection<SteamAccount>){
-        open {
-            accounts.forEach {
-                pushAccount0(it)
-            }
+    suspend fun pushAccounts(accounts: Collection<SteamAccount>){
+        accounts.forEach {
+            pushAccount0(it)
         }
     }
 }
-
-
-@Serializable
-data class Account(
-    val username: String,
-    val password: String,
-    val email:String,
-    val profiled: Boolean = false,
-    val chinaAuthed: Boolean = false,
-)
-
-fun main(){
-    //Jar.pushAccount(SteamAccount(-1,"Test","Test","Test",Profile.NO_PROFILE,false))
-
-
-}
-
-

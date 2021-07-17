@@ -3,21 +3,21 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm")
     application
-    //id("com.github.johnrengelman.shadow")
+    id("com.github.johnrengelman.shadow")
     kotlin("plugin.serialization")
 }
 
 group = "mamoe.naturalhg"
 version = "1.0-SNAPSHOT"
 
-/*
+
 application {
     @Suppress("DEPRECATION")
-    mainClassName = "myproxy.Main"
-    mainClass.set("myproxy.Main")
+    mainClassName = "accountjar.Main"
+    mainClass.set("accountjar.Main")
 }
 
- */
+
 
 repositories {
     mavenCentral()

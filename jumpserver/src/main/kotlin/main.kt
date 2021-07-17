@@ -5,6 +5,7 @@ import JUMPSERVER_HEADER
 import Ksoup
 import PortableRequest
 import applyPortable
+import decodePortableRequest
 import io.ktor.application.*
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -21,8 +22,10 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.util.*
 import io.ktor.util.pipeline.*
 import io.ktor.utils.io.streams.*
+import jumpServerHeaderDecode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
@@ -52,10 +55,11 @@ object Main {
                 routing {
                     route("/") {
                         handle {
-                            val target = call.request.headers["jumpserver-target"] ?: kotlin.run {
+                            val target = call.request.headers["jumpserver-target"]?.jumpServerHeaderDecode() ?: kotlin.run {
                                 call.respond(HttpStatusCode.BadRequest)
                                 return@handle
                             }
+                            println("Received Jump Req to $target")
 
                             val request = call.request
                             //println("Received a request for" + target)
@@ -65,12 +69,13 @@ object Main {
                         }
                     }
                 }
-                install(CallLogging)
+               // install(CallLogging)
             }
         }) {
         }.start(true)
     }
 
+    @OptIn(InternalAPI::class)
     private suspend fun PipelineContext<Unit, ApplicationCall>.doReqKsoup(
         target: String,
         request: ApplicationRequest
@@ -83,12 +88,15 @@ object Main {
                     val value = decodeCookieValue(value_, CookieEncoding.URI_ENCODING)
                     //println("Cookie $key = $value")
                     this.cookie(key, value)
-                    cookie.put(key,value)
+                    cookie[key] = value
                 }
                 val body = withContext(Dispatchers.IO) {
-                    val text = String(call.receiveStream().readBytes(), Charsets.UTF_8)
-                    ksoupJson.decodeFromString<PortableRequest>(text)
+                    val body = String(call.receiveStream().readBytes(), Charsets.UTF_8)
+                    println(body)
+                    body.decodePortableRequest()
                 }
+
+                println(body)
                 this.applyPortable(body)
 
                 request.headers.forEach { headerKey, headerSplitValue ->
@@ -123,6 +131,7 @@ object Main {
                         Cookie(k, v)
                     )
                 }
+
                 result.headers().forEach { (k, v) ->
                     if (!k.equals("content-length", ignoreCase = true) &&
                         !k.equals("content-type", ignoreCase = true) &&
@@ -132,6 +141,8 @@ object Main {
                         call.response.header(k, v)
                     }
                 }
+
+
                 call.response.header(JUMPFOR_HEADER, target)
                 call.respond(
                     object : OutgoingContent.ByteArrayContent() {
@@ -241,6 +252,7 @@ object Main {
                         println("Return Cookie $k = $v")
                         call.response.cookies.append(Cookie(k, v))
                     }
+                    /*
                     result.headers.forEach { k, v ->
                         if (!k.equals("content-length", ignoreCase = true) &&
                             !k.equals("content-type", ignoreCase = true) &&
@@ -252,6 +264,7 @@ object Main {
                             }
                         }
                     }
+                     */
                     call.response.header(JUMPFOR_HEADER, target)
                     val resultBody = result.receive<String>()
                     println(resultBody)

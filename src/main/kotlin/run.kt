@@ -94,10 +94,15 @@ suspend fun main(){
         //conn.jumpServer("107.174.146.144",8188)
         //conn.jumpServer("127.0.0.1",8188)
         //conn.proxy("107.174.146.144",3128)
-        conn.jumpServer("jumpserver://172.245.156.111:8188")
+        conn.jumpServer("jumpserver://23.95.213.143:8188")
         conn.networkRetry(8)
     }
 
+    //client.post("https://steamcommunity.com/login/transfer"){
+        //requestBody("steamid")
+   // }
+
+   // exitProcess(1)
 
     while (true) {
         val accounts = file.readText().deserialize<MutableList<Account>>()
