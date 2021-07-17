@@ -4,6 +4,7 @@ import Ksoup
 import kotlinx.coroutines.time.delay
 import kotlinx.serialization.Serializable
 import net.mamoe.decode
+import networkRetry
 import java.time.Duration
 
 interface MailService {
@@ -68,10 +69,11 @@ object MyMailServer: MailService{
         addIntrinsic{
             it.data("from","AutoSteam")
             println("[MAIL] -> Connect " + it.request().url())
-            println("[MAIL] ->    Send " + it.request().requestBody())
+            //println("[MAIL] ->    Send " + it.request().requestBody())
+            it.networkRetry(10)
         }
         addResponseHandler{
-            println("[MAIL] <-  Status " + it.statusCode() + " " + it.statusMessage())
+            //println("[MAIL] <-  Status " + it.statusCode() + " " + it.statusMessage())
         }
     }
 

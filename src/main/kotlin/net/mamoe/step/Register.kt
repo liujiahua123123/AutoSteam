@@ -138,7 +138,7 @@ object StoreAccount:SteamStep(){
             RemoteJar.pushAccount(SteamAccount(
                 -1,component[RegisterUsername],component[RegisterPassword],component[RegisterEmail],Profile.NO_PROFILE,false
             ).also {
-                println("Uploading Accounts to Remote Jar $it")
+                debug("Uploading Accounts to Remote Jar $it")
                 File(System.getProperty("user.dir") + "/doubleStore.txt").apply {
                     if(!this.exists()){
                         this.createNewFile()

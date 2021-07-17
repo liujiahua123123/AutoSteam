@@ -14,6 +14,7 @@ import net.mamoe.sms.Code
 import net.mamoe.sms.Phone
 import net.mamoe.sms.SMSService
 import net.mamoe.steam.*
+import net.mamoe.step.ProxyProvider
 import org.jsoup.Connection
 import org.jsoup.Jsoup
 import java.io.File
@@ -26,6 +27,31 @@ import java.util.concurrent.Executors
 import javax.net.ssl.*
 import kotlin.random.Random
 import kotlin.system.exitProcess
+
+object JumpServerProxyProvider: ProxyProvider {
+    val list = """
+        jumpserver://172.245.156.111:8188
+        jumpserver://23.95.213.143:8188
+        jumpserver://23.94.182.111:8188
+        jumpserver://104.168.96.118:8188
+        jumpserver://107.173.24.129:8188
+        jumpserver://107.172.156.106:8188
+        jumpserver://23.94.190.104:8188
+        jumpserver://172.245.6.145:8188
+        jumpserver://107.175.87.113:8188
+        jumpserver://104.168.46.119:8188
+    """.trimIndent().split("\n")
+
+    override fun invoke(): Pair<(Connection) -> Unit,String>{
+        with(list.random()) {
+            return Pair({
+                it.jumpServer(this)
+            },this)
+        }
+    }
+}
+
+
 
 val client = SteamStoreClient().apply {
     referer = "https://store.steampowered.com/join/"
@@ -88,22 +114,13 @@ val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
 suspend fun main(){
     //fixJava()
 
-
-    client.addIntrinsic{conn ->
-        conn.timeout(30000)
-        //conn.jumpServer("107.174.146.144",8188)
-        //conn.jumpServer("127.0.0.1",8188)
-        //conn.proxy("107.174.146.144",3128)
-        conn.jumpServer("jumpserver://23.95.213.143:8188")
-        conn.networkRetry(8)
-    }
-
     //client.post("https://steamcommunity.com/login/transfer"){
         //requestBody("steamid")
    // }
 
    // exitProcess(1)
 
+    /*
     while (true) {
         val accounts = file.readText().deserialize<MutableList<Account>>()
         val unprofiled = accounts.filter { !it.profiled }
@@ -123,9 +140,9 @@ suspend fun main(){
         delay(Duration.ofMillis(10000))
     }
 
+     */
 
-
-    //SessionReceiveServer.start()
+    SessionReceiveServer.start()
 }
 
 

@@ -5,13 +5,19 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.html.currentTimeMillis
 import org.jsoup.Connection
+import java.io.File
+import java.io.IOException
+import java.net.SocketException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.LongAdder
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.random.Random
 import kotlin.reflect.jvm.jvmName
 
 
@@ -44,17 +50,25 @@ interface StringComponentKey:ComponentKey<String>
 
 class RerunStepException(val changeProxy:Boolean = false):Exception()
 
-interface proxyProvider{
-    operator fun invoke():(Connection) -> Unit
+interface ProxyProvider{
+    operator fun invoke():Pair<(Connection) -> Unit,String>
 }
 
-class StepExecutor(val worker: Worker, val component: Component, val client: MockChromeClient, val provider: proxyProvider){
+class StepExecutor(val worker: Worker, val component: Component, val client: MockChromeClient, val provider: ProxyProvider){
 
     private var provided = provider()
 
     init {
         client.addIntrinsic{
-            provided(it)
+            provided.first(it)
+            worker.debug("Proxy: " + provided.second)
+
+            it.data("from","AutoSteam")
+            debug(" -> Connect " + it.request().url())
+            debug(" ->    Send " + it.request().requestBody())
+        }
+        client.addResponseHandler{
+            debug("[MAIL] <-  Status " + it.statusCode() + " " + it.statusMessage())
         }
     }
 
@@ -63,19 +77,22 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
     }
 
     fun debug(message: String){
-        worker.log(message)
+        worker.debug(message)
     }
 
     private suspend fun executeStep(
         step: suspend StepExecutor.() -> Unit
     ){
         var maxRetry = 15
+        var networkRetry = 5
 
         while (true) {
             try {
                 step.invoke(this)
+                break
             } catch (e: RerunStepException) {
                 if(e.changeProxy){
+                    worker.debug("Changed Proxy ")
                     provided = provider()
                 }
                 if(maxRetry -- > 0) {
@@ -83,18 +100,32 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
                 }else{
                     error("Too many Retry")
                 }
+            }catch (e: Exception){
+                if(e is SocketException || e is TimeoutException || e is IOException){
+                    if(networkRetry-- > 0) {
+                        provided = provider()
+                        continue
+                    }
+                }
             }
         }
     }
 
     suspend fun executeSteps(vararg step:Step){
+        var counter = 1
         step.forEach {
             try {
-                worker.log("Start step ${it.name}")
+                worker.log(Colors.ANSI_BRIGHT_BLUE + "Starting ${it.name} (" + counter++ + "/" + step.size + ")" + Colors.ANSI_RESET)
+                val startTime = currentTimeMillis()
                 executeStep(it.process)
-                worker.log("Complete step ${it.name}")
+                worker.log(Colors.ANSI_BRIGHT_GREEN + "Complete ${it.name} (" + (currentTimeMillis() - startTime) + "ms)" + Colors.ANSI_RESET)
             }catch (e:Exception){
-                worker.log("Terminated!")
+                worker.log(Colors.ANSI_BRIGHT_RED + "Terminated ${it.name}"+ Colors.ANSI_RESET)
+                val logFile = File(System.getProperty("user.dir") + "/log/" + Random.nextInt(99999) + ".log")
+                worker.log(Colors.ANSI_BRIGHT_RED + "Saving Logs to ${logFile.path}"+ Colors.ANSI_RESET)
+                logFile.writeText(worker.flushLogs())
+                logFile.appendText("\n\n\n Exception: ")
+                logFile.appendText(e.stackTraceToString())
                 throw e
             }
         }
@@ -130,16 +161,29 @@ abstract class SteamStep:Step{
 
 interface Worker{
     fun log(message:String)
+
     fun debug(message: String)
+
+    fun flushLogs():String
 }
 
-private class WorkerImpl(val name:String):Worker{
+class WorkerImpl(val name:String, val debugMode:Boolean = false):Worker{
+    private val builder = StringBuilder()
+
     override fun log(message: String) {
-        println("[$name] $message")
+        println("[$name]  $message")
+        builder.append("[LOG]").append(message).append("\n")
     }
 
     override fun debug(message: String) {
-        println("[$name] $message")
+        if(debugMode){
+            println("[$name]  $message")
+        }
+        builder.append("[DEBUG]").append(message).append("\n")
+    }
+
+    override fun flushLogs(): String {
+        return builder.toString()
     }
 }
 
@@ -170,6 +214,25 @@ object WorkerManager{
 }
 
 
-suspend fun main(){
-
+internal object Colors {
+    const val ANSI_RESET = "\u001B[0m"
+    const val ANSI_BLACK = "\u001B[30m"
+    const val ANSI_RED = "\u001B[31m"
+    const val ANSI_GREEN = "\u001B[32m"
+    const val ANSI_YELLOW = "\u001B[33m"
+    const val ANSI_BLUE = "\u001B[34m"
+    const val ANSI_PURPLE = "\u001B[35m"
+    const val ANSI_CYAN = "\u001B[36m"
+    const val ANSI_WHITE = "\u001B[37m"
+    const val ANSI_GRAY = "\u001B[90m"
+    const val ANSI_BRIGHT_RED = "\u001B[91m"
+    const val ANSI_BRIGHT_GREEN = "\u001B[92m"
+    const val ANSI_BRIGHT_YELLOW = "\u001B[93m"
+    const val ANSI_BRIGHT_BLUE = "\u001B[94m"
+    const val ANSI_BRIGHT_MAGENTA = "\u001B[95m"
+    const val ANSI_BRIGHT_CYAN = "\u001B[96m"
+    const val ANSI_BRIGHT_WHITE = "\u001B[97m"
+    const val ANSI_NONE = ""
 }
+
+

@@ -1,5 +1,7 @@
 package net.mamoe.server
 
+import JumpServerProxyProvider
+import MockChromeClient
 import client
 import cnAuthSimple
 import io.ktor.application.*
@@ -15,6 +17,8 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import net.mamoe.email.MailService
+import net.mamoe.step.*
+import networkRetry
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 import registerSimple
@@ -54,7 +58,16 @@ object SessionReceiveServer {
                    val add = call.parameters.getOrFail("address")
                    val sessionid = call.parameters.getOrFail("session")
                     GlobalScope.launch {
-                        registerSimple(add,sessionid)
+                        val a = createRegisterComponent(add,sessionid)
+                        StepExecutor(
+                            WorkerImpl("Reg $add"),a,MockChromeClient().apply {
+                                                                              addIntrinsic{
+                                                                                  it.networkRetry(3)
+                                                                              }
+                            },JumpServerProxyProvider
+                        ).executeSteps(
+                            VerifyMail,TestUsername,TestPassword,CompleteRegister,StoreAccount
+                        )
                     }
                     call.respond("OK")
                 }
