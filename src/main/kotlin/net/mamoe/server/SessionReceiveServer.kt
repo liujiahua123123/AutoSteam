@@ -3,7 +3,6 @@ package net.mamoe.server
 import JumpServerProxyProvider
 import MockChromeClient
 import client
-import cnAuthSimple
 import io.ktor.application.*
 import io.ktor.features.*
 import io.ktor.http.*
@@ -77,7 +76,7 @@ object SessionReceiveServer {
                     val capTicket = call.parameters.getOrFail("capTicket")
                     val sucCode = call.parameters.getOrFail("secCode")
                     GlobalScope.launch {
-                        cnAuthSimple(capTicket,sucCode)
+                        CapQueue.send(WanmeiCaptcha(capTicket,sucCode))
                     }
                 }
             }

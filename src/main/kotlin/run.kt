@@ -1,11 +1,8 @@
 
 import accountjar.RemoteJar
 import io.ktor.http.*
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.time.delay
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import net.mamoe.*
 import net.mamoe.email.MailService
@@ -49,6 +46,11 @@ object JumpServerProxyProvider: ProxyProvider {
                 it.jumpServer(this)
             },this)
         }
+    }
+}
+object NoProxyProvide:ProxyProvider{
+    override fun invoke(): Pair<(Connection) -> Unit, String> {
+        return Pair({},"localhost")
     }
 }
 
@@ -145,7 +147,15 @@ suspend fun main(){
 
    // SessionReceiveServer.start()
 
-    val account = RemoteJar.popAccount(Profile.NO_PROFILE)
+   // GlobalScope.launch {
+        //SessionReceiveServer.start()
+   // }
+
+
+
+    /*
+
+    val account = RemoteJar.popAccount(chinaAuth = false)
 
     val worker = WorkerImpl("W " + account.id)
     val client = MockChromeClient().apply {
@@ -154,157 +164,29 @@ suspend fun main(){
         }
     }
 
-    val executor = StepExecutor(worker,account.toComponent(),client,JumpServerProxyProvider)
-    executor.executeSteps(Login,SetPrivacy,SetProfile,SetAvatar,StoreAccount)
-}
+    val executor = StepExecutor(worker,account.toComponent(),client,NoProxyProvide)
 
-suspend fun cnAuthSimple(capticket:String,secCode:String){
-
-    val phone = SMSService.DEFAULT.getPhone()
-
-    println(rnrClient.get("https://rnr.steamchina.com/securityCode"){
-        data("mobilePhone",phone.number)
-        data("graphCode", "[]")
-        data("capTicket",capticket)
-        data("secCode",secCode)
-        data("reason","1")
-    }.body())
-
-    val code = phone.waitCode()
-    println(code.code)
-
-
-    val username = "taotao4310"
-    val password = "KIManti11218a"
-
-
-    val d = cnclient.post("https://store.steamchina.com/login/getrsakey/"){
-        data(GetRsaKeyRequest(
-            username = username
-        ))
-    }.decode<GetRsaKeyResponse>()
-
-    val ps = steamPasswordRSA(d.publickey_mod,d.publickey_exp,password)
-    println(ps)
-
-    val r = cnclient.post("https://store.steamchina.com/login/dologin/"){
-        data(LoginRequest(
-            username = username,
-            password = ps,
-            rsatimestamp = d.timestamp,
-        ))
-    }.decode<LoginResponse>()
-
-    if(r.agreement_session_url==null){
-        error("no need to CN anth")
-    }
-    val agreementToken = r.agreement_session_url.substringAfter("token=").trim()
-
-
-    delay(Duration.ofMillis(3000L))
-
-
-    cnclient.get(r.agreement_session_url)
-    delay(Duration.ofMillis(3000L))
-
-    cnclient.get("https://store.steamchina.com/agreements/startidverification?token=$agreementToken&redir=https://store.steamchina.com/login/?agreementsource=2")
-    delay(Duration.ofMillis(3000L))
-
-    rnrClient.get("https://rnr.steamchina.com/register.html?token=$agreementToken&newUser=false")
-    println("Token = $agreementToken")
-
-
-    val id = MyMailServer.randomId()
-
-
-   val resp = rnrClient.post("https://rnr.steamchina.com/register?token=$agreementToken"){
-        header("Content-Type", "application/json")
-        this.requestBody(SteamJson.encodeToString(CNRegisterRequest(
-            mobilePhone = phone.number,
-            realName = id.name,
-            residentId = id.credentialsValue,
-            securityCode = code.code!!
-        )))
-    }.decode<CNRegisterResponse>()
-
-    println(resp)
-
-    delay(Duration.ofMillis(700))
-    val finalStep = cnclient.post("https://store.steamchina.com/agreements/ajaxcompleteagreement"){
-        data("token",agreementToken)
-    }.body()
-    println(finalStep)
-
-    delay(Duration.ofMillis(300))
-    val x = cnclient.get("https://store.steamchina.com/login/?agreementsource=2"){
-        header("referer","https://store.steamchina.com/agreements/startidverification?token=$agreementToken&redir=https://store.steamchina.com/login/?agreementsource=2")
-    }
-    println(x.statusMessage())
-    println(x.statusCode())
-
-    val d1 = cnclient.post("https://store.steamchina.com/login/getrsakey/"){
-        data(GetRsaKeyRequest(
-            username = username
-        ))
-    }.decode<GetRsaKeyResponse>()
-
-
-    val r1 = cnclient.post("https://store.steamchina.com/login/dologin/"){
-        data(LoginRequest(
-            username = username,
-            password = ps,
-            rsatimestamp = d.timestamp,
-        ))
-    }.decode<LoginResponse>()
-}
-
-suspend fun test(){
-    /*
-    val captchaResponse = client.ajax("https://store.steampowered.com/join/refreshcaptcha/"){
-        data(RefreshCaptchaRequest)
-    }.decode<RefreshCaptchaResponse>()
-
-
-
-    println("Received Captcha Response")
-
-
-
-    val capAnswer = CaptchaSolver.DEFAULT.solve(CaptchaSolveRequest(
-        sitekey = captchaResponse.sitekey,
-        s = captchaResponse.s,
-        url = "https://store.steampowered.com/join/",
-        userAgent = client.userAgent,
-        cookie = client.cookies
-    ))
-
-    /*
-    val capAnswer = CaptchaSolveResponse(
-        token = "03AGdBq27ny2HyUu8bodEqg80IzGJi_Mw3ismMAuGvtKfyxeQHl60P-P4TTP_0XSnQGwURI42MH76-O7caEEHg2271TPu2DXwiJ2GzD2Sd3mxU1rPfQqMeAezX1vzo6GgfCmRtfC5vUoEZjWtpuZEgjHu_wpFWLRZJaGVNh20sLY3_YH4B8MtCBVD5yqaKmu-6upS_Sv1svKJ9NRJXGFUyiySh2vka-r2HO3H8jfrRsiFLvPB5KhD1t-gi8lNrcDHMGNKACAvXur9NGQ71dmEgz5wdWHpc9T8uVosgmcKE5WF1JaXJnvIORjpRCIMQD-9ewNZ_hzyRYWIU2LKUHZivjjCa5zB_anWWmFumuAX5aivlvskY9N8Fs6FijhoUnUI7iTBNEZ2kka5reX7To8aXBwnHJVwoOEYGWTwNtQcDX7J1sP_wubs4b4D31FGx7ev4uiHzIhyfeYalIWKNL9uso-uYp8zW4idUncBqtwfuY7fPMwtYC-u-Migk8mBjWkZLRnAAJUXpbYWpYlMPOpQbD9rbu85nVO2Fg2fqhHHtxh0YRCEokKvx23Fq8x_RzrhvaE_9sNf5KFPWB6PrmXhuCgTYXUOOZ8OhvCFxmH0mtTj8RliBs8-DtDTUFkphagreBRzekI1fFT_UfA_bTDguE0S_FI5u36sAOVC9CI9UjVCcxE9BWgEPeSvSNdToxToe1x9SFbVMX806HEG2LOp227HqK1YT0XNYVVEv8QRnP5SV_ZzErOPQ6Z9GAtGthWCbJtdVWVo06EvQ1vEEYyhOoRpg0hkK9PQAJLTZ3IX66dFVM2MNzuL51UND2gMLIAajEFBHEbSQaeuDeRbUEMZ6w33ZMYNGs9u775VCQEcxQOP8eM4INfpqvFco_hIInZ4lYUAIKbItAjNbVMXycTgF4EerHLSEN-6rGotIupHg8McO2A_DoP6yv3v9UT8J0uGScv3MORiWpY3rSDGOqCDdbwJmG-VEfX0-A381P8mvTeVzNB5Lx2voesGs5m2aZm-ZP-Pqf3-QCPD3ADfBf5mhvKki6wk1bHaFPP7V1nno2lRyhWGMmWP7LngdZQGBRC86xgE1wRQLyPKU0W0j6SOS4GyxO4Kp6V4lJa70LakVWRFIync80OA9UBSiGIQJ-7qerxx5MS-a9mDXudnXnNYibjK4VNQr-QRoSOqOfpvjC8p0kQ-eIUIf2cub49BNylF8MK5cbKk0K5r6sCjv9xKw8R3UkGyNC43ydT6ruPhCJQH39WAIw0nNTV6-X0jjUXFRnh4FpvcILQi6T8vDWgCGbXaIuTsN1DqXeoBICGiy2D0JDQLNk_MvhgTYd3Isf4befXSb4LVzWYIz7gH3xpc0GwMtpGaYpSwSa2pUnSgzTCtkKg4pRAJaK-vZ9mqzvnZi3VixTPW1ep9D_3XlY5lBqi4l6SIWzLGjPZxJvvpO7DGpPhaHrE6uZJoJO66JUovL8qjH00_8Uielr6Ho-sfEJy7MQW8kIIzSunbLwWqrbqaCpDThPS8ItYorx3LA8kdFjAvgV0hfm08X"
-     */
-
-
-    println("CapAnswer is $capAnswer")
-    val email = "testtest1@antiplayer.club"
-
-
-    val sendEmailResponse = client.ajax("https://store.steampowered.com/join/ajaxverifyemail"){
-        proxy("127.0.0.1",8888)
-        cookie("browserid","2492157143329006409")
-        cookie("app_impressions","1151640@1_4_4__129_1|1410710@1_4_4__43_1|1147560@1_4_4__139_4|495420@1_4_4__139_4|548430@1_4_4__139_4|35140:200260:208650:367480@1_4_4__139_3|1356670@1_4_4__139_3|374320:442010@1_4_4__139_3|1567800@1_4_4__128_1|578080@1_4_4__129_1|1410710@1_4_4__43_1|1147560@1_4_4__139_4|1217060@1_4_4__139_4|851850@1_4_4__139_4|1263850@1_4_4__139_3|374320:442010@1_4_4__139_3|1172620@1_4_4__139_3|374320:442010@1_4_4__129_1|1410710@1_4_4__43_1|1217060@1_4_4__139_4|1147560@1_4_4__139_4|35140:200260:208650:367480@1_4_4__139_4|107410@1_4_4__139_3|1151640@1_4_4__139_3|374320:442010@1_4_4__139_3")
-
-        data(AjaxVerifyEmailRequest(
-            email = email,
-            captcha_text = capAnswer.token,
-            captchagid = "3989608458749455593",
-            elang = 6
-        ))
-    }.decode<AjaxVerifyEmailResponse>()
-
-    if(sendEmailResponse.success!=1){
-        error("Failed to send email, blocked by shield" )
-    }
+    executor.executeSteps(VerifyPhone,StartCNAuth,CompleteCNAuth,StoreAccount)
 
      */
+
+
+    repeat(21) {
+        val account = RemoteJar.popAccount(profile = Profile.NO_PROFILE)
+
+        val worker = WorkerImpl("W $it")
+
+        val client = MockChromeClient().apply {
+            addIntrinsic {
+                it.networkRetry(8)
+            }
+        }
+
+        val executor = StepExecutor(worker, account.toComponent(), client, JumpServerProxyProvider)
+
+        executor.executeSteps(Login,SetPrivacy,SetProfile,SetAvatar,StoreAccount)
+    }
+
 }
+
 

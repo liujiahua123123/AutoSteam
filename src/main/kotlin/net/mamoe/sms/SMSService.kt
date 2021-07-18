@@ -1,10 +1,13 @@
 package net.mamoe.sms
 
 import APIKEY_SMS
+import APINAME_KAYAN
 import JOBID_SMS
 import Ksoup
+import PASSWORD_KAYAN
 import PASSWORD_SMS
 import kotlinx.coroutines.time.delay
+import networkRetry
 import java.net.SocketException
 import java.time.Duration
 import java.util.regex.Pattern
@@ -12,7 +15,7 @@ import java.util.regex.Pattern
 interface SMSService{
     suspend fun getPhone():Phone
     companion object{
-       val DEFAULT:SMSService = WhiteHorseSMSService
+       val DEFAULT:SMSService = KaYanSMSService
     }
 }
 
@@ -31,6 +34,111 @@ interface Phone{
 }
 
 
+object KaYanSMSService:SMSService{
+    val base = "http://www.qjmm666.com/yhapi.ashx"
+    val client = Ksoup().apply {
+        addIntrinsic{
+            println("[KY] -> Connect " + it.request().url())
+            it.timeout(50000)
+            it.networkRetry(25)
+        }
+        addResponseHandler{
+            println("[KY] <-  Status " + it.statusCode() + " " + it.statusMessage())
+            if(it.body().contains("<!DOCTYPE html>")){
+                println("[KY] <- Receive HTML")
+            }else {
+                println("[KY] <- Receive " + it.body())
+            }
+        }
+    }
+
+    private var token:String? = null
+
+    class KYPhone(override val number: String,val pid:String) :Phone{
+        override suspend fun release() {
+            TODO("Not yet implemented")
+        }
+
+        override suspend fun block() {
+           client.get(base){
+               data("act","addBlack")
+               data("token", token)
+               data("reason","used")
+               data("pid",pid)
+           }
+        }
+
+        override suspend fun getCode(): Code {
+            client.get(base){
+                data("act","getPhoneCode")
+                data("token",token)
+                data("pid",pid)
+            }.body().split("|").let {
+                when(it[0].trim()){
+                    "0" -> {
+                        return Code(it[1].trim(),false)
+                    }
+                    "1" -> {
+                        return Code(it[1].trim(),true)
+                    }
+                    else -> return Code(null,false)
+                }
+            }
+        }
+
+        override suspend fun waitCode(): Code {
+            var maxWait = 60
+            while (maxWait -- > 0){
+                val code = getCode()
+                if(code.received){
+                    return code
+                }
+                when(code.code){
+                    "-1","-2","-4" -> {
+                        error("Phone released")
+                    }
+                    else -> {
+                        delay(Duration.ofMillis(5000))
+                    }
+                }
+            }
+
+            error("Wait Phone Code Timeout")
+        }
+    }
+
+    override suspend fun getPhone(): Phone {
+        if(token == null) {
+            token = client.get(base) {
+                data("act", "login")
+                data("ApiName", APINAME_KAYAN)
+                data("PassWord", PASSWORD_KAYAN)
+            }.body().split("|").run {
+                if (this.size != 2) {
+                    error("Failed to login")
+                }
+                if (this[0].trim() != "1") {
+                    error("Error with API key SMS")
+                }
+                this[1].trim()
+            }
+        }
+
+        client.get(base){
+            data("act","getPhone")
+            data("token", token)
+            data("iid","1215")
+            data("operator","联通")
+        }.body().split("|").let{
+            if(it[0] != "1"){
+                error("Failed to get phone " + it.joinToString("|"))
+            }
+            return KYPhone(it[4].trim(),it[1].trim())
+        }
+
+    }
+
+}
 object WhiteHorseSMSService:SMSService{
     val base = "http://uewttlc.cn:81/api/do.php"
 
@@ -154,11 +262,9 @@ object WhiteHorseSMSService:SMSService{
 
 suspend fun main(){
 
+    val phone = SMSService.DEFAULT.getPhone()
+    println(phone.number)
 
-    val pattern = Regex("\\d{6}")
-    val matches = pattern.find("aaaaaaaa000000bbbbb")
-    if(matches!=null){
-        println(matches.groups[0]!!.value)
-    }
-
+    val code = phone.waitCode()
+    println(code)
 }

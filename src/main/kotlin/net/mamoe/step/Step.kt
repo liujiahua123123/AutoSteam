@@ -69,6 +69,7 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
         }
         client.addResponseHandler{
             debug(" <-  Status " + it.statusCode() + " " + it.statusMessage())
+            debug(" <-  Body " + if(it.body().contains("HTML")){"HTML"}else{it.body()})
         }
     }
 
