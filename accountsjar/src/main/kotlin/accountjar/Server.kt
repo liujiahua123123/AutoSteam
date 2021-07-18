@@ -16,6 +16,7 @@ import kotlinx.serialization.encodeToString
 import ksoupJson
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder
+import org.jetbrains.exposed.sql.and
 import java.io.File
 import java.lang.IllegalArgumentException
 import java.util.concurrent.ConcurrentHashMap
@@ -62,8 +63,7 @@ fun ApplicationCall.readRequirement(): SqlExpressionBuilder.() -> Op<Boolean> {
             }
         }
         return {
-            DBAccounts.profile eq profileRequirement!!
-            DBAccounts.cnAuthed eq cnAuthRequirement!!
+            (DBAccounts.profile eq profileRequirement!!).and(DBAccounts.cnAuthed eq cnAuthRequirement!!)
         }
     } catch (e: IllegalArgumentException) {
         throw UserError("Illegal Profile Argument")
@@ -148,9 +148,6 @@ fun start(){
     }) {
     }.start(true)
 }
-
-
-
 
 suspend inline fun <reified T:Any> ApplicationCall.templateResponse(message: String, success:Boolean, data:T?){
     if(data!=null) {

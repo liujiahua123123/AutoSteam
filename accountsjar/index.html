@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Account JAR</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mdui@0.4.3/dist/css/mdui.min.css"
+          crossorigin="anonymous"/>
+    <script src="https://cdn.jsdelivr.net/npm/mdui@0.4.3/dist/js/mdui.min.js" crossorigin="anonymous"></script>
+    <script src="https://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://cdn.bootcss.com/blueimp-md5/2.10.0/js/md5.js"></script>
+
+    <style>
+        button {
+            color: white;
+        }
+
+        .item-frame{
+            margin-top: 10px;
+        }
+
+        @media screen and (max-width: 770px) {
+            .item-frame{
+                margin-left: calc(50% - 175px);
+            }
+        }
+        @media screen and (min-width: 771px) {
+            .item-frame{
+                float: left;
+                margin-left: 10px;
+            }
+        }
+
+    </style>
+
+    <script>
+        function requireAPIKEY(){
+            mdui.prompt('请输入您的APIKEY以继续',
+                function (value) {
+                    setCookie("APIKEY",value)
+                    window.location.reload()
+                },
+                function (value) {
+                    setCookie("APIKEY",value)
+                    window.location.reload()
+                }
+            );
+        }
+
+        $(window).ready(function () {
+            var showAccount = new mdui.Dialog('#showAccount', {
+                modal: true,
+                destroyOnClosed: false,
+            });
+
+            $("#close").click(function () {
+                showAccount.close()
+                reload()
+            })
+
+            if (getCookie("APIKEY") == null || getCookie("APIKEY") === "-1"){
+                requireAPIKEY()
+            }
+            
+            const itemFrame = $(".item-frame")
+            
+            itemFrame.on("click", ".get_account", function () {
+                var chinaAuthed = $(this).attr("chinaauthed")
+                var profile = $(this).attr("profile")
+
+                let x = new XMLHttpRequest();
+                x.open("GET", "/pop?profile=" + profile + "&chinaAuth=" + chinaAuthed,false)
+                x.setRequestHeader("APIKEY",getCookie("APIKEY"))
+                x.send("")
+                var response = JSON.parse(x.responseText)
+                if(!response.success){
+                    if(response.message === "Permission Denied"){
+                        setCookie("APIKEY","-1")
+                        requireAPIKEY()
+                    }else{
+                        alert(response.message)
+                    }
+                }else{
+                    var jsonVersion = JSON.stringify(response.data)
+                    $("#raw").val(jsonVersion)
+                    $("#email").val(response.data.email)
+                    $("#username").val(response.data.username)
+                    $("#password").val(response.data.password)
+                    $("#id").val(response.data.id)
+                    $("#copy").val(response.data.username + "-" + response.data.password  + "-" + response.data.email)
+                    showAccount.open()
+                }
+            })
+            reload()
+
+        })
+
+        function reload(){
+            var idCounter = 0
+            $(".counter").each(function () {
+                var chinaAuthed = $(this).attr("chinaauthed")
+                var profile = $(this).attr("profile")
+
+                var id = "COUNTER" + (idCounter++)
+                var pointer = $(this)
+                pointer.attr("id",id)
+                let x = new XMLHttpRequest();
+                x.open("GET", "/count?profile=" + profile + "&chinaAuth=" + chinaAuthed,true)
+                x.setRequestHeader("APIKEY",getCookie("APIKEY"))
+                x.onreadystatechange = function () {
+                    if (x.readyState === 4) {
+                        var response = JSON.parse(x.responseText)
+                        if(!response.success){
+                            if(response.message === "Permission Denied"){
+                                setCookie("APIKEY","-1")
+                                requireAPIKEY()
+                            }else{
+                                alert(response.message)
+                            }
+                        }else{
+                            document.getElementById(id).innerHTML = response.data
+                        }
+                    }
+                }
+                x.send("")
+
+            })
+        }
+
+        function setCookie(name,value)
+        {
+            var Days = 30;
+            var exp = new Date();
+            exp.setTime(exp.getTime() + Days*24*60*60*1000);
+            document.cookie = name + "="+ escape (value) + ";expires=" + exp.toGMTString();
+        }
+
+        function getCookie(name)
+        {
+            var arr,reg=new RegExp("(^| )"+name+"=([^;]*)(;|$)");
+            return (arr=document.cookie.match(reg))?unescape(arr[2]):null;
+        }
+    </script>
+</head>
+
+<body class="mdui-theme-layout-dark mdui-theme-accent-orange mdui-theme-primary-teal mdui-theme-accent-pink">
+
+<div class="mdui-toolbar mdui-color-theme mdui-typo">
+    <span class="mdui-typo-title"><b><i style="color: aqua">Account</i><i style="color: wheat">Jar</i> </b> 用户终端</span>
+    <div class="mdui-toolbar-spacer"></div>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <small id="versionCode">寄存账号114514个</small>
+</div>
+
+
+<div class="mdui-dialog" id="showAccount">
+    <div class="mdui-dialog-content">
+        <div class="mdui-dialog-title">提取账号完成</div>
+        <small><b style="color: red">该账号已从数据库移除，请妥善保存数据</b></small>
+        <div class="mdui-textfield">
+            <label class="mdui-textfield-label">Internal ID</label>
+            <input class="mdui-textfield-input" id="id" type="text" disabled/>
+        </div>
+        <div class="mdui-textfield">
+            <label class="mdui-textfield-label">User Name</label>
+            <input class="mdui-textfield-input" id="username" disabled type="text"/>
+        </div>
+        <div class="mdui-textfield">
+            <label class="mdui-textfield-label">Password</label>
+            <input class="mdui-textfield-input" id="password" disabled type="text"/>
+        </div>
+        <div class="mdui-textfield">
+            <label class="mdui-textfield-label">Email</label>
+            <input class="mdui-textfield-input" id="email" type="text" disabled/>
+        </div>
+        <div class="mdui-textfield">
+            <label class="mdui-textfield-label">Copy Me</label>
+            <input class="mdui-textfield-input" id="copy" type="text" disabled/>
+        </div>
+        <div class="mdui-textfield">
+            <label class="mdui-textfield-label">Json</label>
+            <input class="mdui-textfield-input" id="raw" type="text" disabled/>
+        </div>
+    </div>
+    <div class="mdui-dialog-actions">
+        <button class="mdui-btn mdui-ripple " id="close">Confirm</button>
+    </div>
+</div>
+
+<div class="mdui-container" id="container">
+
+    <div class="mdui-card item-frame" style="width: 350px;">
+        <div class="mdui-card-media">
+            <img style="opacity: 0.6;width: 350px;height: 350px" src="https://i.loli.net/2021/07/18/gKs3hecL5FouxUB.jpg"/>
+            <div class="mdui-card-media-covered">
+                <div class="mdui-card-primary">
+                    <div class="mdui-card-primary-title" >黑手维克托©</div>
+                    <div class="mdui-card-primary-subtitle"><small>国际库存: <a class="counter" chinaauthed="false" profile="VECTOR_PROFILE">~</a></small><small style="margin-left: 10px">国服库存: <a class="counter" chinaauthed="true" profile="VECTOR_PROFILE">~</a></small></div>
+                </div>
+            </div>
+        </div>
+        <div class="mdui-card-actions">
+            <button class="mdui-btn mdui-ripple get_account" chinaauthed="false" profile="VECTOR_PROFILE">提取国际账号</button>
+            <button class="mdui-btn mdui-ripple get_account" chinaauthed="true" profile="VECTOR_PROFILE">提取国服账号</button>
+        </div>
+    </div>
+
+
+    <div class="mdui-card item-frame" style="width: 350px;" profile="CHENRUI_PROFILE">
+        <div class="mdui-card-media">
+            <img style="opacity: 0.6;width: 350px;height: 350px" src="https://i.loli.net/2021/07/18/XDUbO3GKBVoYeSm.png"/>
+            <div class="mdui-card-media-covered">
+                <div class="mdui-card-primary">
+                    <div class="mdui-card-primary-title">珠海香洲睿叔叔</div>
+                    <div class="mdui-card-primary-subtitle"><small>国际库存: <a class="counter" chinaauthed="false" profile="CHENRUI_PROFILE">~</a></small><small style="margin-left: 10px">国服库存: <a class="counter" chinaauthed="true" profile="CHENRUI_PROFILE">~</a></small></div>
+                </div>
+            </div>
+        </div>
+        <div class="mdui-card-actions">
+            <button class="mdui-btn mdui-ripple get_account" chinaauthed="false" profile="CHENRUI_PROFILE">提取国际账号</button>
+            <button class="mdui-btn mdui-ripple get_account" chinaauthed="true" profile="CHENRUI_PROFILE">提取国服账号</button>
+        </div>
+    </div>
+
+
+    <div class="mdui-card item-frame" style="width: 350px;" profile="SETU_PROFILE">
+        <div class="mdui-card-media">
+            <img style="opacity: 0.6;width: 350px;height: 350px" src="https://i.loli.net/2021/07/18/klnzyrQZFhHwTsG.jpg"/>
+            <div class="mdui-card-media-covered">
+                <div class="mdui-card-primary">
+                    <div class="mdui-card-primary-title" >二次元</div>
+                    <div class="mdui-card-primary-subtitle"><small>国际库存: <a class="counter" chinaauthed="false" profile="SETU_PROFILE">~</a></small><small style="margin-left: 10px">国服库存: <a class="counter" chinaauthed="true" profile="SETU_PROFILE">~</a></small></div>
+                </div>
+            </div>
+        </div>
+        <div class="mdui-card-actions">
+            <button class="mdui-btn mdui-ripple get_account" chinaauthed="false" profile="SETU_PROFILE">提取国际账号</button>
+            <button class="mdui-btn mdui-ripple get_account" chinaauthed="true" profile="SETU_PROFILE">提取国服账号</button>
+        </div>
+    </div>
+
+
+
+</div>
+
+
+
