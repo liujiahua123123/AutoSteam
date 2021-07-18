@@ -171,7 +171,9 @@ suspend fun main(){
      */
 
 
-    repeat(21) {
+
+
+    repeat(8) {
         val account = RemoteJar.popAccount(profile = Profile.NO_PROFILE)
 
         val worker = WorkerImpl("W $it")
@@ -186,6 +188,7 @@ suspend fun main(){
 
         executor.executeSteps(Login,SetPrivacy,SetProfile,SetAvatar,StoreAccount)
     }
+
 
 }
 

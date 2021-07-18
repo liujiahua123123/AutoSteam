@@ -127,12 +127,12 @@ fun start(){
 
                 userScope("/count", HttpMethod.Get){
                     call.checkAPIKey()
-                    val countReq = call.parameters["profile"]?:"NULL"  + "-" + (call.parameters["chinaAuth"]?:"NULL")
+                    val req = call.readRequirement()
+                    val countReq = (call.parameters["profile"]?:"NULL")  + "-" + (call.parameters["chinaAuth"]?:"NULL")
                     val cache = countCache[countReq]
                     if(cache != null){
                         call.templateResponse("Retrieved from cache, key=$countReq",true,cache)
                     }else {
-                        val req = call.readRequirement()
                         val count = Jar.countAccounts(req)
                         countCache[countReq] = count
                         call.templateResponse("", true, count)
@@ -140,7 +140,7 @@ fun start(){
                 }
 
                 get("/"){
-                    call.respondFile(File(System.getProperty("user.dir") + "index.html"))
+                    call.respondFile(File(System.getProperty("user.dir") + "/index.html"))
                 }
             }
             install(CallLogging)
