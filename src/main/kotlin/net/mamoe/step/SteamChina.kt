@@ -5,9 +5,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.time.delay
 import kotlinx.serialization.encodeToString
 import ksoupJson
-import net.mamoe.SteamJson
 import net.mamoe.data
 import net.mamoe.email.MyMailServer
+import net.mamoe.sms.ReceiveCodeTimeoutException
 import net.mamoe.sms.SMSService
 import net.mamoe.steam.*
 import net.mamoe.steamPasswordRSA
@@ -25,7 +25,7 @@ object VerifyPhone:SteamStep(){
     override val process: suspend StepExecutor.() -> Unit
         get() ={
             log("Waiting for WanMei Captcha")
-            val wanmeiCaptcha = CapQueue.receive()
+            val wanmeiCaptcha = WanmeiCapQueue.receive()
             val phone = SMSService.DEFAULT.getPhone()
             log("Use WMCaptcha " + wanmeiCaptcha.capTicket + " and " + phone.number)
 
@@ -39,12 +39,19 @@ object VerifyPhone:SteamStep(){
 
             if(x.code != 0 || x.description!="Success"){
                 phone.block()
-                println("Phone Number Used")
+                worker.log("Phone Number Used")
                 throw RerunStepException()
             }
-            println("Waiting For Code")
+            worker.log("Waiting For Code")
 
-            val code = phone.waitCode()
+            val code = try {
+                phone.waitCode()
+            }catch (e:ReceiveCodeTimeoutException){
+                phone.block()
+                worker.log("Could not receive a code, blocking phone and restarting..")
+                throw RerunStepException()
+            }
+
             if(!code.received) {
                 phone.block()
                 println("No code received")
@@ -158,4 +165,4 @@ data class WanmeiCaptcha(
     val secCode:String
 )
 
-val CapQueue = Channel<WanmeiCaptcha>(capacity = Channel.UNLIMITED)
+val WanmeiCapQueue = Channel<WanmeiCaptcha>(capacity = Channel.UNLIMITED)

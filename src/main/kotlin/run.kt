@@ -1,8 +1,10 @@
 
 import accountjar.RemoteJar
 import io.ktor.http.*
+import io.ktor.util.collections.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.time.delay
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import net.mamoe.*
 import net.mamoe.email.MailService
@@ -21,8 +23,12 @@ import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.time.Duration
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.*
+import kotlin.concurrent.thread
 import kotlin.random.Random
 import kotlin.system.exitProcess
 
@@ -54,124 +60,170 @@ object NoProxyProvide:ProxyProvider{
     }
 }
 
+//local storage
+val tempAccounts = Collections.synchronizedSet(mutableSetOf<SteamAccount>())
 
-
-val client = SteamStoreClient().apply {
-    referer = "https://store.steampowered.com/join/"
-    addIntrinsic{
-        println("[NETWORK] -> Connect " + it.request().url())
-        it.timeout(10000)
-    }
-    addResponseHandler{
-        println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
-        if(it.body().contains("<!DOCTYPE html>")){
-            println("[NETWORK] <- Receive HTML")
-        }else {
-            println("[NETWORK] <- Receive " + it.body())
-        }
-    }
-}
-
-val cnclient = MockChromeClient().apply {
-    addIntrinsic{
-        println("[NETWORK] -> Connect " + it.request().url())
-        it.header("Origin","https://store.steamchina.com")
-        it.header("Referer","https://store.steamchina.com/login/?redir=&redir_ssl=1&snr=1_4_4__global-header")
-        it.timeout(5000)
-    }
-    addResponseHandler{
-        println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
-        if(it.body().contains("<!DOCTYPE html>")){
-            println("[NETWORK] <- Receive HTML")
-        }else {
-            println("[NETWORK] <- Receive " + it.body())
-        }
-    }
-}
-
-val rnrClient = MockChromeClient().apply {
-    addIntrinsic{
-        println("[NETWORK] -> Connect " + it.request().url())
-        it.header("Origin","http://rnr.steamchina.com")
-        it.header("Referer","https://rnr.steamchina.com/register.html")
-        it.timeout(5000)
-    }
-    addResponseHandler{
-        println("[NETWORK] <-  Status " + it.statusCode() + " " + it.statusMessage())
-        if(it.body().contains("<!DOCTYPE html>")){
-            println("[NETWORK] <- Receive HTML")
-        }else {
-            println("[NETWORK] <- Receive " + it.body())
-        }
-    }
-}
-
-val regDispatcher = Executors.newFixedThreadPool(3).asCoroutineDispatcher()
-
-val file = File(System.getProperty("user.dir") + "/accounts.json").apply {
-    createNewFile()
-    if(this.readText().isEmpty()){
-        this.writeText("[]")
-    }
-}
 suspend fun main(){
-    //fixJava()
+    Runtime.getRuntime().addShutdownHook(thread(start = false){
+        println("Store Local Account back to RemoteJar before exit")
+            tempAccounts.forEach {
+                runBlocking {
+                    println(">$it")
+                    RemoteJar.pushAccount(it)
+                }
+            }
+    })
 
-    //client.post("https://steamcommunity.com/login/transfer"){
-        //requestBody("steamid")
-   // }
 
-   // exitProcess(1)
+    println("请选择你要做什么, 并输入对应序号(1/2/3)")
+    println("[1]: 注册新账户 [不需要挂梯子] 需要使用Chrome解谷歌验证码 如果验证码被ban需要为Chrome设置额外的梯子")
+    println("[2]: 设置身份头像 [需要挂梯子] 无需额外操作")
+    println("[3]: 国服认证 [不需要挂梯子] 需要使用Chrome解完美验证码")
+    println("=======================")
 
-    /*
-    while (true) {
-        val accounts = file.readText().deserialize<MutableList<Account>>()
-        val unprofiled = accounts.filter { !it.profiled }
-        println("There are  $unprofiled accounts need to be handled")
-
-        val next = unprofiled.firstOrNull()?: error("No account to done")
-
-        println("start handle: $next")
-        doProfile(next.username, next.password)
-
-        accounts.remove(next)
-        accounts.add(next.copy(profiled = true))
-
-        file.writeText(SteamJson.encodeToString(accounts))
-        println("finish handle: $next")
-        client.cookies.clear()
-        delay(Duration.ofMillis(10000))
+    GlobalScope.launch {
+        SessionReceiveServer.start()
+        println("+============+")
+        println("Session Server Started, ready to receive>>>")
     }
 
-     */
-
-   // SessionReceiveServer.start()
-
-   // GlobalScope.launch {
-        //SessionReceiveServer.start()
-   // }
 
 
 
-    /*
-
-    val account = RemoteJar.popAccount(chinaAuth = false)
-
-    val worker = WorkerImpl("W " + account.id)
-    val client = MockChromeClient().apply {
-        addIntrinsic{
-            it.networkRetry(8)
+    val taskTodoRaw = readLine()
+    val taskTodo =  when(taskTodoRaw){
+        "1" -> 1
+        "2" -> 2
+        "3" -> 3
+        else -> {
+            println("重新开启并输入对应序号(1/2/3)")
+            exitProcess(1)
         }
     }
 
-    val executor = StepExecutor(worker,account.toComponent(),client,NoProxyProvide)
-
-    executor.executeSteps(VerifyPhone,StartCNAuth,CompleteCNAuth,StoreAccount)
-
-     */
 
 
+    when(taskTodo){
+        1 -> {
+            println(">> 开始解验证码即可, 并发数=5 任务数量=~")
+            repeat(5){
+                GlobalScope.launch {
+                    println("Worker Reg$it is ready...")
+                    while (isActive) {
+                        val worker = WorkerImpl("Reg$it")
+                        try {
+                            val client = MockChromeClient().apply {
+                                addIntrinsic {
+                                    it.networkRetry(8)
+                                }
+                            }
+                            val a = GoogleCapQueue.receive()
+                            StepExecutor(
+                                worker,a, client,JumpServerProxyProvider
+                            ).executeSteps(
+                                VerifyMail,TestUsername,TestPassword,CompleteRegister,StoreAccount
+                            )
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                            println("Exception Happened, account dropped!")
+                        }
+                    }
+                }
+            }
+        }
+        2 -> {
+            println(">> 开始自动处理名字头像组, 并发数=3 任务数量=~")
+            repeat(3) {
+                println("Start Worker$it")
+                GlobalScope.launch {
+                    while (isActive) {
+                        val worker = WorkerImpl("Worker$it")
+                        var account:SteamAccount? = null
+                        try {
+                            account = try {
+                                RemoteJar.popAccount(profile = Profile.NO_PROFILE)
+                            }catch (e:RemoteJar.NoAvailableAccountException){
+                                println("没有需要处理的账号!!")
+                                break
+                            }
 
+                            worker.log("Handle Account: $account")
+
+                            val client = MockChromeClient().apply {
+                                addIntrinsic {
+                                    it.networkRetry(8)
+                                }
+                            }
+
+                            val executor = StepExecutor(worker, account!!.toComponent(), client, JumpServerProxyProvider)
+                            executor.executeSteps(Login,SetPrivacy,SetProfile,SetAvatar,StoreAccount)
+                            worker.log("Successfully Handled Account: $account wait 30 second to protect IP")
+                            delay(1000 * 30)
+
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+
+                            worker.log("Exception Happened, store the origin account back, wait 60 sec to protect IP")
+                            if(account!=null) {
+                                RemoteJar.pushAccount(account)
+                            }
+                            delay(1000 * 60)
+                        }
+                    }
+                }
+            }
+        }
+
+        3 -> {
+            println(">> 开始解验证码即可, 并发数=3 任务数量=~")
+            repeat(3) {
+                println("Start CN$it")
+                GlobalScope.launch {
+                    while (isActive) {
+                        val worker = WorkerImpl("CN$it")
+                        var account2:SteamAccount? = null
+
+                        try {
+                            try {
+                                account2 = RemoteJar.popAccount(chinaAuth = false)
+                            }catch (e:RemoteJar.NoAvailableAccountException){
+                                println("没有需要处理的账号!!")
+                                break
+                            }
+
+                            worker.log("开始认证: $account2")
+
+                            val client = MockChromeClient().apply {
+                                addIntrinsic {
+                                    it.networkRetry(5)
+                                }
+                            }
+
+                            val executor = StepExecutor(worker, account2.toComponent(), client, NoProxyProvide)
+
+                            executor.executeSteps(VerifyPhone,StartCNAuth,CompleteCNAuth,StoreAccount)
+                            worker.log("完成认证Account: $account2,")
+
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+
+                            worker.log("Exception Happened, store the origin account back, wait 60 sec to protect IP")
+                            if(account2!=null) {
+                                RemoteJar.pushAccount(account2)
+                            }
+                            delay(1000 * 60)
+                        }
+                    }
+                }
+            }
+
+        }
+        else -> error("?")
+    }
+
+
+    delay(999999999999999)
+    /*
 
     repeat(8) {
         val account = RemoteJar.popAccount(profile = Profile.NO_PROFILE)
@@ -188,7 +240,7 @@ suspend fun main(){
 
         executor.executeSteps(Login,SetPrivacy,SetProfile,SetAvatar,StoreAccount)
     }
-
+    */
 
 }
 

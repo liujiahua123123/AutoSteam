@@ -7,6 +7,7 @@ import decode
 import kotlinx.serialization.encodeToString
 import ksoupJson
 import networkRetry
+import java.lang.RuntimeException
 
 
 object RemoteJar {
@@ -29,12 +30,18 @@ object RemoteJar {
             }
         }.decode<TemplateResponse<SteamAccount>>()
         if(!x.success){
+            if(x.message == "No Available Account"){
+                throw NoAvailableAccountException()
+            }
             error(x.message)
         }
         return x.data!!
     }
 
 
+    class NoAvailableAccountException:RuntimeException(){
+
+    }
 
     suspend fun pushAccount(account: SteamAccount){
         val x = client.post(BASE + "/push"){

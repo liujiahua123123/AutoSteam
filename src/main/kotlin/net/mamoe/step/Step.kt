@@ -86,6 +86,9 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
     ){
         var maxRetry = 15
         var networkRetry = 5
+        var globalRetry = 3
+
+        var exception:Throwable? = null
 
         while (true) {
             try {
@@ -101,14 +104,24 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
                 }else{
                     error("Too many Retry")
                 }
-            }catch (e: Exception){
+            }catch (e: Throwable){
                 if(e is SocketException || e is TimeoutException || e is IOException){
                     if(networkRetry-- > 0) {
+                        worker.log(Colors.ANSI_BRIGHT_RED + "Doing a Network layer step Rerun"+ Colors.ANSI_RESET)
                         provided = provider()
                         continue
                     }
                 }
-                throw e;
+                if(globalRetry-- > 0){
+                    worker.log(Colors.ANSI_BRIGHT_RED + "Doing a Global step Rerun"+ Colors.ANSI_RESET)
+                    if(exception == null){
+                        exception = e
+                    }else{
+                        exception.addSuppressed(e)
+                    }
+                    continue
+                }
+                throw e
             }
         }
     }
@@ -121,7 +134,7 @@ class StepExecutor(val worker: Worker, val component: Component, val client: Moc
                 val startTime = currentTimeMillis()
                 executeStep(it.process)
                 worker.log(Colors.ANSI_BRIGHT_GREEN + "Complete ${it.name} (" + (currentTimeMillis() - startTime) + "ms)" + Colors.ANSI_RESET)
-            }catch (e:Exception){
+            }catch (e:Throwable){
                 worker.log(Colors.ANSI_BRIGHT_RED + "Terminated ${it.name}"+ Colors.ANSI_RESET)
                 val logFile = File(System.getProperty("user.dir") + "/logs/" + Random.nextInt(99999) + ".log").apply {
                     createNewFile()
@@ -160,7 +173,6 @@ abstract class SteamStep:Step{
             block.invoke(this)
         }
     }
-
 }
 
 interface Worker{

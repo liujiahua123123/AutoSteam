@@ -3,6 +3,7 @@ package net.mamoe.step
 import Profile
 import SteamAccount
 import accountjar.RemoteJar
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.time.delay
 import kotlinx.serialization.encodeToString
 import ksoupJson
@@ -11,6 +12,7 @@ import net.mamoe.decode
 import net.mamoe.email.MailService
 import net.mamoe.steam.*
 import net.mamoe.steamPasswordRSA
+import tempAccounts
 import java.io.File
 import java.time.Duration
 import kotlin.random.Random
@@ -26,6 +28,9 @@ object CnAuthStatus:ComponentKey<Boolean>
 
 object Steam64Id:StringComponentKey
 object Email2FA:StringComponentKey
+
+
+object StoreAccountReferer:ComponentKey<SteamAccount>
 
 object VerifyMail:SteamStep(){
     override val name: String = "Verify Email"
@@ -143,6 +148,11 @@ object StoreAccount:SteamStep(){
     override val name: String = "Store Account"
     override val process: suspend StepExecutor.() -> Unit
         get() = {
+            val account = component.getOrNull(StoreAccountReferer)
+            if(account!=null) {
+                tempAccounts.remove(account)//remove temp, store online
+            }
+
             RemoteJar.pushAccount(SteamAccount(
                 -1,component[Username],component[Password],component[Email],component.getOrNull(ProfileStatus)?:Profile.NO_PROFILE,component.getOrNull(CnAuthStatus)?:false
             ).also {
@@ -334,6 +344,11 @@ fun SteamAccount.toComponent():Component{
         it[Username] = this.username
         it[ProfileStatus] = this.profiled
         it[CnAuthStatus] = this.chinaAuthed
+        it[StoreAccountReferer] = this
     }
 }
 
+
+
+//put compo directly
+val GoogleCapQueue = Channel<Component>(Channel.UNLIMITED)

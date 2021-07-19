@@ -24,6 +24,10 @@ data class Code(
     val received:Boolean,
 )
 
+class ReceiveCodeTimeoutException:RuntimeException("Receive Code Timeout"){
+
+}
+
 interface Phone{
     val number:String
     suspend fun release()
@@ -87,7 +91,7 @@ object KaYanSMSService:SMSService{
         }
 
         override suspend fun waitCode(): Code {
-            var maxWait = 60
+            var maxWait = 50
             while (maxWait -- > 0){
                 val code = getCode()
                 if(code.received){
@@ -103,7 +107,7 @@ object KaYanSMSService:SMSService{
                 }
             }
 
-            error("Wait Phone Code Timeout")
+            throw ReceiveCodeTimeoutException()
         }
     }
 
@@ -128,7 +132,7 @@ object KaYanSMSService:SMSService{
             data("act","getPhone")
             data("token", token)
             data("iid","1215")
-            data("operator","联通")
+            //data("operator","联通")
         }.body().split("|").let{
             if(it[0] != "1"){
                 error("Failed to get phone " + it.joinToString("|"))

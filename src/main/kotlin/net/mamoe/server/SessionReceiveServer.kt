@@ -2,11 +2,9 @@ package net.mamoe.server
 
 import JumpServerProxyProvider
 import MockChromeClient
-import client
 import io.ktor.application.*
 import io.ktor.features.*
 import io.ktor.http.*
-import io.ktor.http.HttpStatusCode.Companion.OK
 import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
@@ -14,7 +12,6 @@ import io.ktor.server.netty.*
 import io.ktor.util.*
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 import net.mamoe.email.MailService
 import net.mamoe.step.*
 import networkRetry
@@ -56,16 +53,7 @@ object SessionReceiveServer {
                    val add = call.parameters.getOrFail("address")
                    val sessionid = call.parameters.getOrFail("session")
                     GlobalScope.launch {
-                        val a = createRegisterComponent(add,sessionid)
-                        StepExecutor(
-                            WorkerImpl("Reg $add"),a,MockChromeClient().apply {
-                                                                              addIntrinsic{
-                                                                                  it.networkRetry(3)
-                                                                              }
-                            },JumpServerProxyProvider
-                        ).executeSteps(
-                            VerifyMail,TestUsername,TestPassword,CompleteRegister,StoreAccount
-                        )
+                        GoogleCapQueue.send(createRegisterComponent(add,sessionid))
                     }
                     call.respond("OK")
                 }
@@ -76,7 +64,7 @@ object SessionReceiveServer {
                     val capTicket = call.parameters.getOrFail("capTicket")
                     val sucCode = call.parameters.getOrFail("secCode")
                     GlobalScope.launch {
-                        CapQueue.send(WanmeiCaptcha(capTicket,sucCode))
+                        WanmeiCapQueue.send(WanmeiCaptcha(capTicket,sucCode))
                     }
                 }
             }
